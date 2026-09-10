@@ -217,6 +217,8 @@ export function bottleneckOf(s: GameState, id: StructureId): string | null {
   if (people.obreros < 1) return "FALTAN OBREROS";
   const need = materialsFor(id, st.stage);
   const unpaid = st.progress < 0.02;
+  // Fe: if the almacén has the material, never say FALTA.
+  // Fe: if this stage already started (materials taken), never say FALTA.
   if (unpaid && need.acero > 0 && s.resources.acero < need.acero) return "FALTA ACERO";
   if (unpaid && need.hormigon > 0 && s.resources.hormigon < need.hormigon) return "FALTA HORMIGÓN";
 
@@ -397,6 +399,8 @@ function enterStageCosts(s: GameState, id: StructureId, stage: StructureStage): 
   s.resources.hormigon -= need.hormigon;
   s.totals.acero += need.acero;
   s.totals.hormigon += need.hormigon;
+  const st = s.structures[id];
+  if (st.progress < 0.021) st.progress = 0.021;
   return true;
 }
 
