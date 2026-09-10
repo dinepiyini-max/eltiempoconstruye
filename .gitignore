@@ -1,0 +1,25 @@
+node_modules/
+.vercel/
+.output/
+.nitro/
+.tanstack/
+dist/
+build/
+coverage/
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# sandbox / preview local
+.grok/
+AGENTS.md
+AGENTS.project.md
+screenshots/
+artifacts/
+attachments/
+tmp/
+
+# test dumps
+*.tsbuildinfo

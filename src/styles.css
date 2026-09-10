@@ -1,0 +1,157 @@
+@import "tailwindcss";
+
+@theme {
+  --color-paper: #efe6d0;
+  --color-paper-2: #e6d9b8;
+  --color-paper-3: #d9cba8;
+  --color-ink: #2c2a26;
+  --color-ink-soft: #5c574e;
+  --color-graphite: #3f3c36;
+  --color-faint: #b9ad93;
+  --color-rule: #c4b79a;
+  --color-cyan: #2f6a78;
+  --color-cyan-soft: #4a8490;
+  --color-cyan-wash: #d5e4e4;
+  --color-rust: #c45c26;
+  --color-stamp: #a33b1e;
+  --color-stamp-ink: #7a2c16;
+
+  --font-serif: "Cormorant Garamond", "Times New Roman", Times, serif;
+  --font-sans: "IBM Plex Sans Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
+
+  --radius-none: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+
+  --shadow-sheet:
+    0 0 0 1px rgba(44, 42, 38, 0.08),
+    0 18px 50px -24px rgba(44, 42, 38, 0.28);
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background: var(--color-paper);
+    color: var(--color-ink);
+  }
+
+  html,
+  body,
+  #app {
+    min-height: 100dvh;
+  }
+
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    background: var(--color-paper);
+    color: var(--color-ink);
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  select {
+    border-radius: 0;
+    appearance: auto;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+  }
+
+  input,
+  textarea {
+    border-radius: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+  }
+
+  option {
+    background: var(--color-paper);
+    color: var(--color-ink);
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--color-cyan) 28%, var(--color-paper));
+    color: var(--color-ink);
+  }
+}
+
+@layer components {
+  .paper-grain {
+    background-color: var(--color-paper);
+    background-image:
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.22  0 0 0 0 0.18  0 0 0 0 0.10  0 0 0 0.28 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"),
+      linear-gradient(180deg, #f3ead6 0%, #efe6d0 42%, #eadfc8 100%);
+    background-size: 180px 180px, 100% 100%;
+    background-blend-mode: multiply, normal;
+  }
+
+  .hairline {
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-ink) 18%, transparent);
+  }
+
+  .stamp {
+    font-family: var(--font-sans);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    border: 1.5px solid var(--color-stamp);
+    color: var(--color-stamp);
+    transform: rotate(-8deg);
+    line-height: 1.1;
+    user-select: none;
+  }
+
+  .stamp-turno {
+    border-color: var(--color-cyan);
+    color: var(--color-cyan);
+  }
+
+  .stamp-siempre {
+    border-color: var(--color-stamp);
+    color: var(--color-stamp);
+  }
+
+  .small-caps {
+    font-family: var(--font-sans);
+    letter-spacing: 0.14em;
+    font-weight: 500;
+  }
+
+  .libreta-hoja {
+    background-image: linear-gradient(
+      to right,
+      transparent 0,
+      transparent 1.15rem,
+      color-mix(in oklab, var(--color-stamp) 42%, transparent) 1.15rem,
+      color-mix(in oklab, var(--color-stamp) 42%, transparent) 1.28rem,
+      transparent 1.28rem
+    );
+  }
+
+  .libreta-entry {
+    padding-left: 0.4rem;
+  }
+
+  .writing-vertical {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    letter-spacing: 0.22em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
