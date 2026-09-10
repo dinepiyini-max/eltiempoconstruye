@@ -1,7 +1,7 @@
-import { PACE_CAPTION, PHASE_LABEL, REGIME_CAPTION, RESOURCE_HINT, SUPPLY } from "@/lib/obra/catalog";
+import { CLOCK_HOLD_LINE, PACE_CAPTION, PHASE_LABEL, REGIME_CAPTION, RESOURCE_HINT, SUPPLY } from "@/lib/obra/catalog";
 import { clockParts, formatInt } from "@/lib/obra/format";
 import { CARGO, MANDANTE, PROYECTO, TESIS } from "@/lib/obra/pliego";
-import { floodLine } from "@/lib/obra/sim";
+import { floodLine, hasSignedFront } from "@/lib/obra/sim";
 import { useObra } from "@/lib/obra/store";
 import type { ClockPace, PageId } from "@/lib/obra/types";
 import { NuevaPartida } from "./NuevaPartida";
@@ -44,6 +44,8 @@ export function TitleBlock() {
   const visita = slot === "visita";
   const flood = floodLine(game);
   const closed = floodStatus === "incumplido" || floodStatus === "a-salvo";
+  const clockHeld = !hasSignedFront(game);
+  const paceLine = clockHeld ? CLOCK_HOLD_LINE : PACE_CAPTION;
 
   return (
     <header className="relative z-20 border-b border-rule/80 bg-paper/90 px-3 py-2 sm:px-5">
@@ -141,15 +143,16 @@ export function TitleBlock() {
             key={p.id}
             type="button"
             onClick={() => setClockPace(p.id)}
-            title={PACE_CAPTION}
+            disabled={clockHeld && p.id !== "pausa"}
+            title={paceLine}
             className={`small-caps min-h-11 px-2 text-[0.52rem] ${
               clockPace === p.id ? "border-b border-rust text-ink" : "text-ink-soft"
-            }`}
+            } disabled:text-faint`}
           >
             {p.label}
           </button>
         ))}
-        <span className="font-serif text-xs italic text-ink-soft">{PACE_CAPTION}</span>
+        <span className="font-serif text-xs italic text-ink-soft">{paceLine}</span>
         {noteFocus ? (
           <span className="font-serif text-xs italic text-stamp">Campo abierto · el reloj espera tu nota.</span>
         ) : null}

@@ -294,7 +294,7 @@ export function hydrateParsed(parsed: unknown): GameState | null {
     cartaRead: true,
     libreta: migrateLibreta(libretaSrc),
     floodStatus: migrateFlood(p.floodStatus),
-    clockPace: migratePace((p as { clockPace?: unknown }).clockPace),
+    clockPace: anyOpen ? migratePace((p as { clockPace?: unknown }).clockPace) : "pausa",
     libretaOpen: openedDock,
     libretaPinned: Boolean(p.libretaPinned),
     resources: { ...base.resources, ...(p.resources ?? {}) },

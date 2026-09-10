@@ -22,6 +22,7 @@ import {
   SITE_MINUTES_PER_REAL_SECOND,
   OFFLINE_CAP_MS,
   SUPPLY,
+  SURVEY_REAL_SECONDS,
   WAGE,
   nextStage,
   stageIndex,
@@ -144,6 +145,10 @@ export function frontPosting(front: FrontId): string {
   return `en frente ${FRONT_LABEL[front]}`;
 }
 
+export function hasSignedFront(s: GameState): boolean {
+  return V1_CONTRACT_IDS.some((id) => s.structures[id].opened);
+}
+
 export function reservaPool(s: GameState) {
   return peopleOn(s, "reserva");
 }
@@ -217,8 +222,6 @@ export function bottleneckOf(s: GameState, id: StructureId): string | null {
   if (people.obreros < 1) return "FALTAN OBREROS";
   const need = materialsFor(id, st.stage);
   const unpaid = st.progress < 0.02;
-  // Fe: if the almacén has the material, never say FALTA.
-  // Fe: if this stage already started (materials taken), never say FALTA.
   if (unpaid && need.acero > 0 && s.resources.acero < need.acero) return "FALTA ACERO";
   if (unpaid && need.hormigon > 0 && s.resources.hormigon < need.hormigon) return "FALTA HORMIGÓN";
 
@@ -368,6 +371,18 @@ function applyFatigue(s: GameState, dtMin: number): void {
 /* 2. TICK                                                                    */
 /* -------------------------------------------------------------------------- */
 
+function finishSurvey(s: GameState): void {
+  s.survey = 1;
+  s.surveying = false;
+  s.instruction = s.instruction === "levanta" ? "define" : s.instruction;
+  s.resources.conocimiento += 6;
+  for (const crew of s.crews) {
+    if (crew.front === "survey") crew.front = "reserva";
+  }
+  refreshContracts(s);
+  s.lastNotice = SCRIPT_60.define;
+}
+
 function tickSurvey(s: GameState, hours: number): void {
   if (s.survey >= 1) return;
   if (!s.surveying) return;
@@ -379,17 +394,19 @@ function tickSurvey(s: GameState, hours: number): void {
     s.totals.horasHombre += heads * hours;
     s.resources.dinero = Math.max(0, s.resources.dinero - wagePerHour(s, people) * hours);
   }
+  if (s.survey >= 1) finishSurvey(s);
+}
+
+/** Levante en tiempo real. El reloj de sitio sigue en PAUSA. Devuelve true al terminar. */
+export function tickSurveyReal(s: GameState, dtSec: number): boolean {
+  if (s.survey >= 1 || !s.surveying) return false;
+  const dt = Math.max(0, dtSec);
+  s.survey = Math.min(1, s.survey + dt / SURVEY_REAL_SECONDS);
   if (s.survey >= 1) {
-    s.survey = 1;
-    s.surveying = false;
-    s.instruction = s.instruction === "levanta" ? "define" : s.instruction;
-    s.resources.conocimiento += 6;
-    for (const crew of s.crews) {
-      if (crew.front === "survey") crew.front = "reserva";
-    }
-    refreshContracts(s);
-    s.lastNotice = SCRIPT_60.define;
+    finishSurvey(s);
+    return true;
   }
+  return false;
 }
 
 function enterStageCosts(s: GameState, id: StructureId, stage: StructureStage): boolean {
@@ -399,8 +416,6 @@ function enterStageCosts(s: GameState, id: StructureId, stage: StructureStage): 
   s.resources.hormigon -= need.hormigon;
   s.totals.acero += need.acero;
   s.totals.hormigon += need.hormigon;
-  const st = s.structures[id];
-  if (st.progress < 0.021) st.progress = 0.021;
   return true;
 }
 
@@ -969,12 +984,18 @@ export function shiftOficio(s: GameState, crewId: string, oficio: Oficio, dir: 1
     s.lastNotice = wasCritical || lastHands ? "Este frente quedará detenido." : null;
     return;
   }
-  if (reserva[key] < 1) {
-    s.lastNotice = "Nada en disponibles.";
-    return;
+  if (dir > 0) {
+    if (oficio === "topografo" && reservaPool(s).topografos < 1) {
+      s.lastNotice = "SIN TOP EN RESERVA";
+      return;
+    }
+    if (reserva[key] < 1) {
+      s.lastNotice = oficio === "topografo" ? "SIN TOP EN RESERVA" : "Nada en disponibles.";
+      return;
+    }
+    reserva[key] -= 1;
+    crew[key] += 1;
   }
-  reserva[key] -= 1;
-  crew[key] += 1;
 }
 
 function takeFromReserva(
@@ -1080,6 +1101,7 @@ export function signFirst(s: GameState, id: StructureId): { ok: boolean; reason?
     s.instruction = "dirige";
     return { ok: true };
   }
+  const first = !hasSignedFront(s);
   const c = s.contracts.find((x) => x.structureId === id);
   if (c && c.status !== "cumplido" && c.status !== "activo") {
     c.status = "activo";
@@ -1087,7 +1109,8 @@ export function signFirst(s: GameState, id: StructureId): { ok: boolean; reason?
   }
   openStructure(s, id);
   s.instruction = "dirige";
-  s.lastNotice = SCRIPT_60.after;
+  if (first) s.clockPace = "normal";
+  s.lastNotice = SCRIPT_60.firmado;
   return { ok: true };
 }
 

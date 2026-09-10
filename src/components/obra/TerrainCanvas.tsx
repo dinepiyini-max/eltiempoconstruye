@@ -1,12 +1,10 @@
 import { useEffect, useRef } from "react";
 import { drawSheet, hitTest, paletteFrom } from "@/lib/obra/draw";
-import { isV1Contract } from "@/lib/obra/sim";
 import { useObra } from "@/lib/obra/store";
 
 export function TerrainCanvas() {
   const ref = useRef<HTMLCanvasElement>(null);
   const startSurvey = useObra((s) => s.startSurvey);
-  const signFirst = useObra((s) => s.signFirst);
   const select = useObra((s) => s.select);
   const setPendingCoords = useObra((s) => s.setPendingCoords);
 
@@ -41,8 +39,11 @@ export function TerrainCanvas() {
       if (!parent) return;
       pal = paletteFrom(canvas);
       const st = useObra.getState();
+      const flashAt = st.surveyFlashAt;
+      const flash = flashAt ? Math.max(0, 1 - (Date.now() - flashAt) / 520) : 0;
       drawSheet(ctx, parent.clientWidth, parent.clientHeight, st.game, pal, hover, {
         visita: st.slot === "visita",
+        flash,
       });
     };
     raf = requestAnimationFrame(loop);
@@ -78,8 +79,7 @@ export function TerrainCanvas() {
         return;
       }
       if (hit.type === "structure" && hit.id) {
-        if (game.instruction === "define" && isV1Contract(hit.id)) signFirst(hit.id);
-        else select(hit.id);
+        select(hit.id);
       }
     };
     const onContext = (e: MouseEvent) => {
@@ -106,7 +106,7 @@ export function TerrainCanvas() {
       canvas.removeEventListener("pointerdown", onClick);
       canvas.removeEventListener("contextmenu", onContext);
     };
-  }, [startSurvey, signFirst, select, setPendingCoords]);
+  }, [startSurvey, select, setPendingCoords]);
 
   return (
     <canvas

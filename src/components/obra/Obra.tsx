@@ -205,6 +205,8 @@ function CrewRow({ id }: { id: string }) {
   const crew = game.crews.find((c) => c.id === id);
   if (!crew) return null;
   const heads = crewHeadcount(crew);
+  const pool = reservaPool(game);
+  const noTop = pool.topografos < 1;
 
   return (
     <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-rule/70 py-2">
@@ -221,6 +223,7 @@ function CrewRow({ id }: { id: string }) {
       <div className="flex flex-wrap items-center gap-1">
         {OFICIOS.map((o) => {
           const n = crew[OFICIO_KEY[o.id]];
+          const addTopLocked = o.id === "topografo" && noTop;
           return (
             <div key={o.id} className="flex items-center" title={RESOURCE_HINT[o.short]}>
               <span className="small-caps mr-1 w-8 text-[0.52rem] text-ink-soft">{o.short}</span>
@@ -235,12 +238,19 @@ function CrewRow({ id }: { id: string }) {
               <span className="w-5 text-center tabular-nums">{n}</span>
               <button
                 type="button"
-                className="min-h-11 min-w-11 text-lg text-ink-soft"
+                disabled={addTopLocked}
+                className="min-h-11 min-w-11 text-lg text-ink-soft disabled:text-faint"
                 onClick={() => shift(crew.id, o.id, 1)}
-                aria-label={`Añadir ${o.short}`}
+                aria-label={addTopLocked ? "SIN TOP EN RESERVA" : `Añadir ${o.short}`}
+                title={addTopLocked ? "SIN TOP EN RESERVA" : `Añadir ${o.short}`}
               >
                 +
               </button>
+              {addTopLocked ? (
+                <span className="small-caps ml-1 max-w-[7.5rem] text-[0.48rem] leading-tight text-faint">
+                  SIN TOP EN RESERVA
+                </span>
+              ) : null}
             </div>
           );
         })}

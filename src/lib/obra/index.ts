@@ -14,7 +14,7 @@
  * Hojas del documento: PLANO · OBRA · CONTRATOS · ARCHIVO.
  * LIBRETA es un panel dock, siempre montado. No es una hoja.
  *
- * Reloj: clockPace NORMAL | LENTO | PAUSA. El sitio no avanza por leer la UI.
+ * Reloj: clockPace NORMAL | LENTO | PAUSA. Sin primer frente el reloj está en PAUSA.
  * Crecida: floodLine(state) es la única cifra de “faltan N días”.
  *
  * Verbos: startSurvey, signFirst, accept, staffFront, shift, cycleFront,

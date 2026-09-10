@@ -120,6 +120,10 @@ export const REGIME_CAPTION = {
 } as const;
 
 export const PACE_CAPTION = "El sitio no para salvo que tú pauses el reloj.";
+/** Hasta firmar el primer frente el reloj está en PAUSA. */
+export const CLOCK_HOLD_LINE = "El reloj no espera — tú decides cuándo soltarlo.";
+/** Gesto de levantamiento: segundos reales, no minutos de sitio. */
+export const SURVEY_REAL_SECONDS = 2.4;
 
 export const BOTTLE_GLOSS: Record<string, string> = {
   "SIN AUTORIZAR": "Este frente aún no está firmado. Sella CAMINO, PUENTE o MURO, o firma en CONTRATOS.",
@@ -440,7 +444,7 @@ export function createInitialState(): GameState {
     cartaRead: true,
     libreta: [],
     floodStatus: "pendiente",
-    clockPace: "normal",
+    clockPace: "pausa",
     libretaOpen: false,
     libretaPinned: false,
   };

@@ -11,6 +11,7 @@
  */
 import { create } from "zustand";
 import { createInitialState, SITE_MINUTES_PER_REAL_SECOND } from "./catalog";
+import { SCRIPT_60 } from "./pliego";
 import { loadState, peekLibreta, readSlotFromSearch, saveState } from "./persist";
 import {
   acceptContract,
@@ -18,12 +19,14 @@ import {
   assignCrew,
   assignFromDisponibles,
   cycleCrewFront,
+  hasSignedFront,
   openStructure,
   orderSupply,
   shiftOficio,
   signFirst,
   startSurvey,
   stepMinutes,
+  tickSurveyReal,
   toggleRegime,
 } from "./sim";
 import type {
@@ -48,6 +51,8 @@ type ObraStore = {
   hydrated: boolean;
   noteFocus: boolean;
   pendingCoords: { x: number; y: number } | null;
+  surveyFlashAt: number | null;
+  toastAt: number | null;
   hydrate: (slot: SaveSlot) => void;
   catchUp: () => void;
   advance: (dtSec: number) => void;
@@ -112,6 +117,7 @@ function commit(set: (p: Partial<ObraStore>) => void, get: () => ObraStore, game
 }
 
 function paceScale(game: GameState, noteFocus: boolean): number {
+  if (!hasSignedFront(game)) return 0;
   if (noteFocus || game.clockPace === "pausa") return 0;
   if (game.clockPace === "lento") return 0.25;
   return 1;
@@ -123,6 +129,8 @@ export const useObra = create<ObraStore>((set, get) => ({
   hydrated: false,
   noteFocus: false,
   pendingCoords: null,
+  surveyFlashAt: null,
+  toastAt: null,
 
   hydrate: (slot) => {
     const prev = get();
@@ -136,14 +144,14 @@ export const useObra = create<ObraStore>((set, get) => ({
     if (base.clockPace !== "pausa") applyElapsed(base, Date.now());
     else base.realLastSeen = Date.now();
     resetClocks();
-    set({ game: base, hydrated: true, slot, noteFocus: false, pendingCoords: null });
+    set({ game: base, hydrated: true, slot, noteFocus: false, pendingCoords: null, surveyFlashAt: null, toastAt: null });
     saveState(base, slot);
   },
 
   catchUp: () => {
     const { game, slot, hydrated, noteFocus } = get();
     if (!hydrated) return;
-    if (noteFocus || game.clockPace === "pausa") {
+    if (noteFocus || game.clockPace === "pausa" || !hasSignedFront(game)) {
       game.realLastSeen = Date.now();
       saveState(game, slot);
       return;
@@ -158,13 +166,20 @@ export const useObra = create<ObraStore>((set, get) => ({
     if (!hydrated) return;
     const cap = Math.min(dtSec, 0.1);
     const game = get().game;
+    let flash = false;
+    if (game.surveying && game.survey < 1) {
+      flash = tickSurveyReal(game, cap);
+    }
     const scale = paceScale(game, noteFocus);
     if (scale <= 0) {
       game.realLastSeen = Date.now();
       uiAcc += cap;
-      if (uiAcc >= 0.25) {
+      const pulse = game.surveying || flash ? 0.05 : 0.25;
+      if (uiAcc >= pulse || flash) {
         uiAcc = 0;
         notify(set, game);
+        if (flash) set({ surveyFlashAt: Date.now() });
+        if (flash || game.surveying) saveState(game, slot);
       }
       return;
     }
@@ -176,9 +191,10 @@ export const useObra = create<ObraStore>((set, get) => ({
     }
     uiAcc += cap;
     saveAcc += cap;
-    if (uiAcc >= 0.12) {
+    if (uiAcc >= 0.12 || flash) {
       uiAcc = 0;
       notify(set, game);
+      if (flash) set({ surveyFlashAt: Date.now() });
     }
     if (saveAcc >= 6) {
       saveAcc = 0;
@@ -216,13 +232,17 @@ export const useObra = create<ObraStore>((set, get) => ({
   signFirst: (id) => {
     const game = get().game;
     signFirst(game, id);
+    const stamped = game.lastNotice === SCRIPT_60.firmado;
     commit(set, get, game);
+    if (stamped) set({ toastAt: Date.now() });
   },
 
   accept: (contractId) => {
     const game = get().game;
     acceptContract(game, contractId);
+    const stamped = game.lastNotice === SCRIPT_60.firmado;
     commit(set, get, game);
+    if (stamped) set({ toastAt: Date.now() });
   },
 
   openFront: (id) => {
@@ -305,7 +325,7 @@ export const useObra = create<ObraStore>((set, get) => ({
     base.libreta = notes;
     base.realLastSeen = Date.now();
     resetClocks();
-    set({ game: base, hydrated: true, slot: "visita", noteFocus: false, pendingCoords: null });
+    set({ game: base, hydrated: true, slot: "visita", noteFocus: false, pendingCoords: null, surveyFlashAt: null, toastAt: null });
     saveState(base, "visita");
   },
 
@@ -332,12 +352,18 @@ export const useObra = create<ObraStore>((set, get) => ({
     base.libretaPinned = game.libretaPinned;
     base.realLastSeen = Date.now();
     resetClocks();
-    set({ game: base, hydrated: true, slot, noteFocus: false, pendingCoords: null });
+    set({ game: base, hydrated: true, slot, noteFocus: false, pendingCoords: null, surveyFlashAt: null, toastAt: null });
     saveState(base, slot);
   },
 
   setClockPace: (pace) => {
     const game = get().game;
+    if (!hasSignedFront(game)) {
+      game.clockPace = "pausa";
+      game.lastNotice = SCRIPT_60.hold;
+      commit(set, get, game);
+      return;
+    }
     game.clockPace = pace;
     game.lastNotice =
       pace === "pausa"

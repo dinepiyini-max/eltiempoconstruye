@@ -1,14 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ObraApp } from "@/components/obra/shell";
+import { AppShell } from "@/components/obra/AppShell";
+
+type Search = { modo?: "visita" };
 
 export const Route = createFileRoute("/")({
-  validateSearch: (s: Record<string, unknown>) => ({
-    modo: s.modo === "visita" ? ("visita" as const) : undefined,
+  validateSearch: (raw: Record<string, unknown>): Search => ({
+    modo: raw.modo === "visita" ? "visita" : undefined,
   }),
   component: Home,
 });
 
 function Home() {
   const { modo } = Route.useSearch();
-  return <ObraApp slot={modo === "visita" ? "visita" : "jefe"} />;
+  return <AppShell slot={modo === "visita" ? "visita" : "jefe"} />;
 }

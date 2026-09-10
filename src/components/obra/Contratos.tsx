@@ -26,23 +26,19 @@ export function Contratos() {
   const flood = floodLine(game);
 
   return (
-    <section className="mx-auto w-full max-w-3xl flex-1 px-4 py-6 sm:px-8">
-      <header className="border-b border-ink/20 pb-4">
+    <section className="mx-auto flex w-full max-w-3xl flex-col px-4 py-4 sm:px-8">
+      <header className="border-b border-ink/20 pb-3">
         <p className="small-caps text-[0.62rem] text-cyan">
           Pliego · {VALLEY_NAME} · {MANDANTE}
         </p>
         <h2 className="font-serif text-3xl text-ink">Contratos</h2>
-        <p className="mt-1 font-serif italic text-ink-soft">Tres encargos del mismo pliego. Prestigio {formatInt(prestigio)}.</p>
-        <p className="mt-3 small-caps text-[0.6rem] text-stamp">{flood}</p>
-        <ol className="mt-4 space-y-1 border-t border-rule/70 pt-3">
-          {PLIEGO_LINES.map((l) => (
-            <li key={l} className="font-serif text-sm leading-snug text-ink-soft">
-              {l}
-            </li>
-          ))}
-        </ol>
+        <p className="mt-1 font-serif italic text-ink-soft">
+          Tres encargos del mismo pliego. Prestigio {formatInt(prestigio)}.
+        </p>
+        <p className="mt-2 small-caps text-[0.6rem] text-stamp">{flood}</p>
+        <p className="mt-2 font-serif text-sm leading-snug text-ink-soft">{PLIEGO_LINES[2]}</p>
       </header>
-      <ol className="mt-2">
+      <ol className="mt-3 flex flex-col gap-3 pb-8">
         {contracts.map((c, i) => (
           <ContractBlock key={c.id} contract={c} index={i + 1} />
         ))}
@@ -68,7 +64,7 @@ function ContractBlock({ contract, index }: { contract: Contract; index: number 
   const estimado = `${contract.durationDays} días · obra estimada del frente`;
 
   return (
-    <li className="border-b border-rule/90 py-6">
+    <li className="border border-ink/20 bg-paper px-4 py-4 shadow-sheet">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="small-caps text-[0.6rem] text-ink-soft">Contrato {String(index).padStart(3, "0")}</p>
         <p className="small-caps text-[0.6rem] text-stamp">{STATUS[contract.status]}</p>
@@ -77,7 +73,7 @@ function ContractBlock({ contract, index }: { contract: Contract; index: number 
       <p className="mt-1 max-w-prose font-serif text-[1.02rem] leading-snug text-ink-soft">{contract.body}</p>
       <p className="mt-3 font-serif text-sm leading-snug text-ink">{contract.purpose}</p>
       <p className="mt-1 font-serif text-sm italic leading-snug text-stamp">{contract.threat}</p>
-      <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
+      <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
         <Item k="Presupuesto" v={formatInt(contract.cost)} />
         <Item k="Obra estimada del frente" v={estimado} />
         <Item k="Crecida" v={flood} />
@@ -108,13 +104,13 @@ function ContractBlock({ contract, index }: { contract: Contract; index: number 
         <button
           type="button"
           onClick={() => accept(contract.id)}
-          className="stamp mt-5 min-h-11 px-4 py-1 text-[0.68rem]"
+          className="stamp mt-4 min-h-11 px-4 py-1 text-[0.68rem]"
         >
-          {SCRIPT_60.merece}
+          {SCRIPT_60.firmar}
         </button>
       ) : null}
       {contract.status === "activo" || contract.status === "cumplido" ? (
-        <p className="stamp mt-5 inline-block px-3 py-1 text-[0.62rem] opacity-80">{STATUS[contract.status]}</p>
+        <p className="stamp mt-4 inline-block px-3 py-1 text-[0.62rem] opacity-80">{STATUS[contract.status]}</p>
       ) : null}
     </li>
   );

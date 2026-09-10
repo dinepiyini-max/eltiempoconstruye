@@ -3,43 +3,41 @@
 Live: https://eltiempoconstruye.grok.me
 Repo: https://github.com/dinepiyini-max/eltiempoconstruye
 
-Runtime: TypeScript / React. Gana `src/game/sim.ts` si un texto discrepa.
+Runtime: TypeScript / React. Gana `src/lib/obra/sim.ts` si un texto discrepa.
 Libreta: localStorage del navegador. Sin red, sin POST, sin endpoint.
 
-## Este pase (motor + libreta local + repo)
+## PR1 (este pase)
 
 | # | Ítem | Veredicto |
 |---|---|---|
-| 1 | Draft de la libreta sobrevive cerrar el dock y cambiar de hoja. Dock a la derecha. Tipos BUG·MEJORA·DUDA·NOTA. Foco en el campo pausa el reloj. NUEVA PARTIDA pregunta conservar notas (default SÍ). | **OK** |
-| 2 | Inventario = cuello. Si el stock cubre, no dice FALTA ACERO / FALTA HORMIGÓN. Si `paidStage` es la etapa actual, inventario 0 tampoco es FALTA. Pedido honesto si aún falta. | **OK** |
-| 3 | Cambiar de hoja no gasta horas de sitio. Reloj NORMAL / LENTO / PAUSA. `setPage` no llama `advanceMinutes`. | **OK** |
-| 4 | Un solo plazo de crecida: `floodLine()` → `CRECIDA Q50 · faltan N días` (o hoy / OBRA A SALVO / PLAZO INCUMPLIDO). Solo el cajetín lo muestra. | **OK** |
-| 5 | Código completo en GitHub `main`. README fusionado (se conserva el título `# eltiempoconstruye`). | **OK** si el commit de este handoff está en `main` |
+| 1 | LEVANTA EL TERRENO: estado LEVANTANDO… + %; al terminar desaparece TERRENO SIN LEVANTAR; flash en el mapa. | **OK** si el gesto corre en tiempo real con el reloj en PAUSA |
+| 2 | Elegir CAMINO/PUENTE/MURO muestra sello FIRMAR CONTRATO + toast «Frente firmado». | **OK** |
+| 3 | Hasta firmar el primer frente el reloj está en PAUSA. Luego NORMAL. Texto: «El reloj no espera — tú decides cuándo soltarlo.» | **OK** |
+| 4 | Hoja CONTRATOS: 3 tarjetas completas, sin vacío al scroll. | **OK** |
+| 5 | Añadir TOP: disabled + «SIN TOP EN RESERVA» si count=0. | **OK** |
 
 ## Fe del motor (no UI)
 
 | Ítem | Veredicto |
 |---|---|
 | Reloj NORMAL / LENTO / PAUSA | **OK** |
+| Sin frente firmado = PAUSA forzada | **OK** |
 | Foco libreta = PAUSA | **OK** |
-| Asignar personal disabled + razón en una línea si no hay disponibles | **OK** |
-| Ficha del plano se reabre (plano montado, `selected` sobrevive) | **OK** |
-| Dos saves `obra.jefe` / `obra.visita`, no se mezclan | **OK** |
-| Tope de ausencia 8 h reales | **OK** |
-| Tres contratos V1 (camino, puente, muro). Firmar no cobra peaje. | **OK** |
-| Libreta sin fetch / POST / endpoint | **OK** |
+| Inventario = cuello | **OK** |
+| Un plazo de crecida `floodLine()` | **OK** |
+| Libreta local, sin red | **OK** |
+| Dos saves `obra.jefe` / `obra.visita` | **OK** |
 
 ## No se toca
 
-No idle. No UI dulce. No edificios nuevos. No 4º contrato. No oficios nuevos. No tutorial. No anuncios de personal. No endpoint de libreta.
+No idle. No frentes nuevos. No endpoint. No PWA. No seed. No pantalla de victoria. No 4º contrato. No oficios nuevos.
 
 ## Dónde está cada regla
 
-- Reloj, cuellos, pedidos, personal, crecida: `src/game/sim.ts`
-- Pace, foco, cambio de hoja, NUEVA PARTIDA: `src/game/store.ts`
-- Saves y draft: `src/game/persist.ts` — claves `obra.jefe` / `obra.visita` / `obra.{slot}.draft`
-- Tests de fe: `src/game/faith.test.ts` (`node --experimental-strip-types --test src/game/faith.test.ts`)
-- Dock libreta: `src/components/obra/libreta.tsx` (draft en localStorage)
+- Reloj, cuellos, pedidos, personal, crecida, levante: `src/lib/obra/sim.ts`
+- Pace, foco, cambio de hoja, NUEVA PARTIDA: `src/lib/obra/store.ts`
+- Saves: `src/lib/obra/persist.ts` — claves `obra.jefe` / `obra.visita`
+- Tests: `src/lib/obra/persist.test.ts`
 
 ## FALLA conocida
 

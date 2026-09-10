@@ -12,6 +12,7 @@ import {
   contractClock,
   daysUntilFlood,
   floodLine,
+  hasSignedFront,
   isV1Contract,
   orderSupply,
   requirementGap,
@@ -20,6 +21,7 @@ import {
   staffGate,
   startSurvey,
   stepMinutes,
+  tickSurveyReal,
   v1Complete,
 } from "./sim.ts";
 
@@ -44,6 +46,12 @@ describe("persistencia", () => {
     assert.ok(parsed.contracts[0]?.purpose);
     assert.equal(parsed.clockPace, "normal");
     assert.equal(parsed.page, "plano");
+  });
+
+  it("sin frente firmado el reloj hidrata en pausa", () => {
+    const parsed = hydrateParsed({ version: 1, clockPace: "normal", survey: 0 });
+    assert.equal(parsed?.clockPace, "pausa");
+    assert.equal(hasSignedFront(parsed!), false);
   });
 
   it("migra la hoja notas/libreta → plano y abre el dock", () => {
@@ -94,6 +102,8 @@ describe("reloj", () => {
     assert.equal(s.instruction, "dirige");
     const c = s.contracts.find((x) => x.structureId === "puente");
     assert.equal(c?.status, "activo");
+    assert.equal(s.clockPace, "normal");
+    assert.equal(s.lastNotice, "Frente firmado");
   });
 
   it("CAMINO PUENTE MURO son el pliego V1", () => {
@@ -160,12 +170,37 @@ describe("reloj", () => {
     assert.equal(flood, "Llegó la crecida. Plazo incumplido.");
   });
 
+  it("partida nueva arranca en pausa hasta el primer sello", () => {
+    const s = createInitialState();
+    assert.equal(s.clockPace, "pausa");
+    assert.equal(hasSignedFront(s), false);
+    s.survey = 1;
+    s.instruction = "define";
+    signFirst(s, "camino");
+    assert.equal(s.clockPace, "normal");
+    assert.equal(hasSignedFront(s), true);
+  });
+
   it("levantar el terreno termina en pocos minutos de sitio", () => {
     const s = createInitialState();
     startSurvey(s);
     stepMinutes(s, 20);
     assert.equal(s.survey, 1);
     assert.equal(s.instruction, "define");
+  });
+
+  it("el levante corre en tiempo real sin gastar minutos de sitio", () => {
+    const s = createInitialState();
+    const before = s.siteMinutes;
+    startSurvey(s);
+    assert.equal(s.surveying, true);
+    const done = tickSurveyReal(s, 2.4);
+    assert.equal(done, true);
+    assert.equal(s.survey, 1);
+    assert.equal(s.surveying, false);
+    assert.equal(s.instruction, "define");
+    assert.equal(s.siteMinutes, before);
+    assert.equal(s.clockPace, "pausa");
   });
 
   it("la crecida sella incumplido si el pliego no cerró", () => {
@@ -287,6 +322,19 @@ describe("inventario y personal", () => {
     while (crew.topografos > 1) shiftOficio(s, crew.id, "topografo", -1);
     shiftOficio(s, crew.id, "topografo", -1);
     assert.equal(s.lastNotice, "Este frente quedará detenido.");
+  });
+
+  it("añadir TOP sin reserva queda bloqueado", () => {
+    const s = createInitialState();
+    s.survey = 1;
+    signFirst(s, "camino");
+    const crew = s.crews.find((c) => c.front === "camino");
+    assert.ok(crew);
+    for (const c of s.crews) {
+      if (c.front === "reserva") c.topografos = 0;
+    }
+    shiftOficio(s, crew.id, "topografo", 1);
+    assert.equal(s.lastNotice, "SIN TOP EN RESERVA");
   });
 });
 

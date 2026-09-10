@@ -626,7 +626,16 @@ function labels(ctx: CanvasRenderingContext2D, f: Frame, s: GameState, pal: Pale
   ctx.letterSpacing = "0";
   ctx.restore();
 
-  if (s.survey < 0.2) {
+  if (s.surveying && s.survey < 1) {
+    ctx.save();
+    ctx.font = "500 13px 'IBM Plex Sans Condensed', sans-serif";
+    ctx.fillStyle = pal.rust;
+    ctx.textAlign = "center";
+    ctx.letterSpacing = "0.28em";
+    ctx.fillText(`LEVANTANDO… ${Math.round(s.survey * 100)}%`, f.x + f.w / 2, f.y + f.h * 0.44);
+    ctx.letterSpacing = "0";
+    ctx.restore();
+  } else if (s.survey < 1) {
     ctx.save();
     ctx.font = "500 13px 'IBM Plex Sans Condensed', sans-serif";
     ctx.fillStyle = pal.faint;
@@ -762,7 +771,7 @@ export function drawSheet(
   s: GameState,
   pal: Palette,
   hover: Pt | null,
-  opts?: { visita?: boolean },
+  opts?: { visita?: boolean; flash?: number },
 ) {
   ctx.clearRect(0, 0, w, h);
   cropMarks(ctx, w, h, pal);
@@ -815,6 +824,19 @@ export function drawSheet(
     ctx.arc(p.x, p.y, 30, 0, Math.PI * 2);
     ctx.stroke();
     ctx.globalAlpha = 1;
+  }
+
+  const flash = opts?.flash ?? 0;
+  if (flash > 0) {
+    ctx.save();
+    ctx.fillStyle = pal.paper;
+    ctx.globalAlpha = 0.62 * flash;
+    ctx.fillRect(f.x, f.y, f.w, f.h);
+    ctx.strokeStyle = pal.rust;
+    ctx.globalAlpha = 0.9 * flash;
+    ctx.lineWidth = 3;
+    ctx.strokeRect(f.x, f.y, f.w, f.h);
+    ctx.restore();
   }
 }
 

@@ -9,6 +9,7 @@ import { Obra } from "./Obra";
 import { Plano } from "./Plano";
 import { SimHost } from "./SimHost";
 import { TitleBlock } from "./TitleBlock";
+import { Toast } from "./Toast";
 
 export function AppShell({ slot }: { slot: SaveSlot }) {
   const page = useObra((s) => s.game.page);
@@ -34,8 +35,9 @@ export function AppShell({ slot }: { slot: SaveSlot }) {
         <>
           <TitleBlock />
           <AbsenceNote />
+          <Toast />
           <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-            <main className="relative min-h-0 min-w-0 flex-1">
+            <main className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
               <div
                 className={`absolute inset-0 ${page === "plano" ? "" : "invisible pointer-events-none"}`}
                 aria-hidden={page !== "plano"}
@@ -43,7 +45,7 @@ export function AppShell({ slot }: { slot: SaveSlot }) {
                 <Plano />
               </div>
               {page !== "plano" ? (
-                <div className="absolute inset-0 z-10 overflow-auto bg-paper">
+                <div className="absolute inset-0 z-10 overflow-y-auto overflow-x-hidden bg-paper">
                   {page === "obra" ? <Obra /> : null}
                   {page === "contratos" ? <Contratos /> : null}
                   {page === "archivo" ? <Archivo /> : null}

@@ -118,7 +118,7 @@ export function CommandCard() {
           onClick={() => accept(contract.id)}
           className="stamp mt-4 min-h-11 px-3 py-1 text-[0.62rem]"
         >
-          {SCRIPT_60.merece}
+          {SCRIPT_60.firmar}
         </button>
       ) : null}
     </aside>

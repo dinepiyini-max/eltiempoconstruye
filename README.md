@@ -13,14 +13,12 @@ Te nombra jefe de obra el Consorcio Municipal del Valle del Yuna. Encargo: conec
 
 Hojas: **PLANO · OBRA · CONTRATOS · ARCHIVO**. LIBRETA es un panel de campo, no una hoja.
 
-No hay cuentas. No hay red. El valle vive en el navegador.
-
 ## Reloj y fe
 
 - Ritmo **NORMAL / LENTO / PAUSA**. Cambiar de hoja no gasta horas de sitio.
 - Escribir en la libreta pausa el reloj.
 - Un solo contador: `CRECIDA Q50 · faltan N días`. El plazo de un frente se llama «obra estimada del frente».
-- Si hay acero u hormigón, el cuello no dice FALTA. Si la etapa ya pagó el material, inventario 0 tampoco es FALTA.
+- Si hay acero u hormigón, el cuello no dice FALTA.
 - Sin personal en disponibles: el botón queda disabled, con la razón en una línea.
 - La ficha del plano se reabre siempre (clic en la pieza o en CAMINO / PUENTE / MURO).
 
@@ -34,4 +32,4 @@ Dos cajas, nunca una: `obra.jefe` y `obra.visita` (`?modo=visita`). Sin cuentas.
 
 ## Motor
 
-TypeScript. El reloj y los cuellos están en [`src/game/sim.ts`](src/game/sim.ts). Persistencia en [`src/game/persist.ts`](src/game/persist.ts). Estado en [`src/game/store.ts`](src/game/store.ts). Tests de fe: [`src/game/faith.test.ts`](src/game/faith.test.ts). Handoff: [`docs/HANDOFF.md`](docs/HANDOFF.md).
+TypeScript. El reloj está en `src/lib/obra/sim.ts`. Persistencia en `src/lib/obra/persist.ts`. El mapa del sistema: `src/lib/obra/index.ts` y `src/lib/obra/ARQUITECTURA.md`. Handoff: [`docs/HANDOFF.md`](docs/HANDOFF.md).
