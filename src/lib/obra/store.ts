@@ -7,7 +7,7 @@
  * flush()         escribe el slot actual. Llamar al ocultar la pestaña.
  * resetValley(keepNotes)  NUEVA PARTIDA. Pregunta explícita por la libreta.
  *
- * Inspección: window.__obra
+ * Inspección (solo DEV): window.__obra.get / slot / keys. En prod no existe.
  */
 import { create } from "zustand";
 import { createInitialState, SAVE_FAIL_LINE, SITE_MINUTES_PER_REAL_SECOND } from "./catalog";
@@ -500,7 +500,7 @@ declare global {
   }
 }
 
-if (typeof window !== "undefined") {
+if (typeof window !== "undefined" && import.meta.env.DEV) {
   window.__obra = {
     get: () => useObra.getState(),
     slot: () => useObra.getState().slot,

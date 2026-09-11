@@ -21,8 +21,7 @@
  *   toggleRegime, order, addNote, restoreVisita, importVisitaNotes,
  *   resetValley(keepNotes), setClockPace, toggleLibreta
  *
- *   window.__obra.get()   estado vivo
- *   window.__obra.slot()  "jefe" | "visita"
+ *   window.__obra (solo DEV)  get / slot / keys. En prod no existe.
  */
 export { useObra } from "./store";
 export { SLOT_KEYS, SITE_MINUTES_PER_REAL_SECOND, OFFLINE_CAP_MS } from "./catalog";

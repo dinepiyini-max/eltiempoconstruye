@@ -9,19 +9,21 @@ Libreta: localStorage del navegador. Sin red, sin POST, sin endpoint.
 
 Canon de este hilo: **no** `src/game`. No se reescribe de cero.
 
-## Banner REANUDA (este pase)
+## Este pase
 
-Tras F5 / reabrir partida guardada: una línea visible **encima del título OBRA**, sin hover, sin recorte. No es un botón. Solo se cierra con **CERRAR**. Un click en el cajetín no la quita. No se va sola.
-
-Formato: `REANUDA · Día 01 · Fase II · firmados: CAMINO, PUENTE`
-
-Cableado: `hydrate` con save **siempre** setea `resumeLine` (`composeResumeLine`). `catchUp` también. `ResumeBanner` dentro de TitleBlock, primera fila.
+1. `window.__obra` solo si `import.meta.env.DEV`. En prod no existe. Solo `get` / `slot` / `keys`.
+2. Banner REANUDA (JEFE): `hydrate` con save siempre setea `resumeLine`. Encima de OBRA. Texto `REANUDA · Día NN · Fase X · firmados: …`. Visible ≥ 8 s. Solo **CERRAR**. Click en el cajetín no lo tira. Hard reload lo vuelve a mostrar.
 
 
 
-| # | Ítem | Preview | Live grok.me |
+
+
+| # | Ítem | Build prod / preview | Live grok.me |
 |---|---|---|---|
-| 1 | F5 tras firmar → banner visible ≥ 8 s, solo CERRAR lo quita | **OK** — `REANUDA · Día 01 · Fase II · firmados: PUENTE` + CERRAR | **FALLA** — grok.me aún sirve el banner-botón de 189166c (sin CERRAR). Este commit lo corrige. |
+| A | `typeof window.__obra === "undefined"` en prod | **OK** | **FALLA** — grok.me aún expone el hook (commit anterior). Este commit lo quita. |
+| B | JEFE: firmar → F5 → banner ≥ 8 s + CERRAR | **OK** | **OK** |
+| C | hard reload → banner otra vez | **OK** | **OK** |
+
 
 
 
