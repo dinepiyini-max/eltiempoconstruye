@@ -1,6 +1,6 @@
 import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { createInitialState, APPLY_ELAPSED_SKIP_MS, OFFLINE_CAP_MS, SLOT_KEYS } from "./catalog.ts";
+import { createInitialState, APPLY_ELAPSED_SKIP_MS, OFFLINE_CAP_MS, SLOT_KEYS, stageIndex } from "./catalog.ts";
 import { clockParts } from "./format.ts";
 import { FLOOD } from "./pliego.ts";
 import { hydrateParsed, migrateLibreta, snapshotState } from "./persist.ts";
@@ -8,6 +8,7 @@ import {
   acceptContract,
   applyElapsed,
   bottleneckOf,
+  bottleAction,
   bottleGloss,
   composeAbsenceLine,
   composeResumeLine,
@@ -25,6 +26,7 @@ import {
   staffGate,
   startSurvey,
   stepMinutes,
+  supplyKindFor,
   tickSurveyReal,
   transferTop,
   v1Complete,
@@ -540,6 +542,73 @@ describe("salida de beta · pliego v1", () => {
     assert.equal(sheet.stamp, "PLAZO INCUMPLIDO");
     assert.match(sheet.phrase, /crecida llegó/);
     assert.equal(crecidaNoNegocia(s), false);
+  });
+});
+
+describe("lluvia y etapas", () => {
+  it("lluvia en vertido nombra lluvia, no FALTA HORMIGÓN", () => {
+    const s = createInitialState();
+    s.survey = 1;
+    signFirst(s, "puente");
+    s.structures.puente.stage = "estructura";
+    s.structures.puente.progress = 0;
+    s.structures.puente.paidStage = null;
+    s.resources.hormigon = 0;
+    s.slowdowns.push({ target: "puente", minutesLeft: 120, factor: 0.52, kind: "lluvia" });
+    assert.equal(bottleneckOf(s, "puente"), "LLUVIA — NO SE VIERTE");
+    assert.equal(supplyKindFor(bottleneckOf(s, "puente")), null);
+    assert.match(bottleAction(bottleneckOf(s, "puente")) ?? "", /vertido espera/i);
+  });
+
+  it("con hormigón en almacén la lluvia de vertido sigue nombrando lluvia", () => {
+    const s = createInitialState();
+    s.survey = 1;
+    signFirst(s, "puente");
+    s.structures.puente.stage = "estructura";
+    s.structures.puente.paidStage = "estructura";
+    s.resources.hormigon = 80;
+    s.slowdowns.push({ target: "puente", minutesLeft: 120, factor: 0.52, kind: "lluvia" });
+    assert.equal(bottleneckOf(s, "puente"), "LLUVIA — NO SE VIERTE");
+  });
+
+  it("lluvia en excavación no detiene el frente ni pide hormigón", () => {
+    const s = createInitialState();
+    s.survey = 1;
+    signFirst(s, "muro");
+    s.structures.muro.stage = "excavacion";
+    s.structures.muro.paidStage = "excavacion";
+    s.slowdowns.push({ target: "muro", minutesLeft: 120, factor: 0.52, kind: "lluvia" });
+    assert.equal(bottleneckOf(s, "muro"), "LLUVIA EN ESTE FRENTE");
+    assert.equal(supplyKindFor(bottleneckOf(s, "muro")), null);
+    assert.match(bottleAction(bottleneckOf(s, "muro")) ?? "", /no hay que parar/i);
+  });
+
+  it("muro no salta armado sin acero", () => {
+    const s = createInitialState();
+    s.survey = 1;
+    s.regime = "siempre";
+    signFirst(s, "muro");
+    const crew = s.crews.find((c) => c.front === "muro");
+    assert.ok(crew);
+    crew.obreros = 80;
+    crew.capataces = 10;
+    crew.ingenieros = 3;
+    crew.topografos = 2;
+    s.structures.muro.stage = "excavacion";
+    s.structures.muro.progress = 0.99;
+    s.structures.muro.paidStage = "excavacion";
+    s.resources.acero = 0;
+    s.resources.hormigon = 0;
+    stepMinutes(s, 60, { eventBudget: 0 });
+    const landed = s.structures.muro.stage;
+    assert.ok(stageIndex(landed) <= stageIndex("armado"), landed);
+    assert.notEqual(landed, "encofrado");
+    assert.notEqual(landed, "estructura");
+    assert.notEqual(landed, "conexion");
+    if (stageIndex(landed) === stageIndex("armado")) {
+      assert.equal(bottleneckOf(s, "muro"), "FALTA ACERO");
+      assert.equal(s.structures.muro.progress, 0);
+    }
   });
 });
 

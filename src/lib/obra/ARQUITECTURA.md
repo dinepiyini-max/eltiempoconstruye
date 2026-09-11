@@ -73,6 +73,10 @@ dice FALTA si `paidStage !== stage` y el almacén no cubre. Pagada la etapa,
 el inventario vacío no miente FALTA. Cada cargo deja `lastNotice` con
 cantidad; cada viaje nombra destino (almacén / frente).
 
+Lluvia: en `estructura` el cuello es `LLUVIA — NO SE VIERTE` aunque falte
+hormigón (no se puede verter). En las demás etapas el ritmo baja y el frente
+sigue. Un tick no cruza más de una etapa: el muro no salta armado.
+
 ## Contratos = frentes del pliego
 
 CAMINO / PUENTE / MURO son los mismos sellos del primer minuto. Firmar en

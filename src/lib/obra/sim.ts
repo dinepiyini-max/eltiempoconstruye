@@ -266,16 +266,19 @@ export function bottleneckOf(s: GameState, id: StructureId): string | null {
     return "FALTA TOPÓGRAFO";
   }
   if (people.obreros < 1) return "FALTAN OBREROS";
+
+  const sls = slowdownsOn(s, id);
+  const rain = sls.find((d) => d.kind === "lluvia");
+  // Vertido: la lluvia manda. No se miente FALTA HORMIGÓN si igual no se puede verter.
+  if (rain && st.stage === "estructura") {
+    return "LLUVIA — NO SE VIERTE";
+  }
+
   const need = materialsFor(id, st.stage);
   const unpaid = st.paidStage !== st.stage;
   if (unpaid && need.acero > 0 && s.resources.acero < need.acero) return "FALTA ACERO";
   if (unpaid && need.hormigon > 0 && s.resources.hormigon < need.hormigon) return "FALTA HORMIGÓN";
 
-  const sls = slowdownsOn(s, id);
-  const rain = sls.find((d) => d.kind === "lluvia");
-  if (rain && (st.stage === "estructura" || st.stage === "encofrado")) {
-    return "LLUVIA — NO SE VIERTE";
-  }
   if (rain) return "LLUVIA EN ESTE FRENTE";
   const mat = sls.find((d) => d.kind === "material");
   if (mat && st.stage === "armado" && unpaid && s.resources.acero < Math.max(1, need.acero)) {
@@ -302,6 +305,10 @@ export function bottleAction(bottle: string | null): string | null {
       return "Pedir acero en el cajetín.";
     case "FALTA HORMIGÓN":
       return "Pedir hormigón en el cajetín.";
+    case "LLUVIA — NO SE VIERTE":
+      return "El vertido espera. Sigue otro frente o espera a que escampe.";
+    case "LLUVIA EN ESTE FRENTE":
+      return "El ritmo baja. No hay que parar el frente.";
     case "SIN CUADRILLA":
     case "FALTA TOPÓGRAFO":
     case "FALTAN OBREROS":
@@ -639,19 +646,17 @@ function tickFront(s: GameState, id: StructureId, hours: number): void {
   const ex = def.excavate[st.stage] ?? 0;
   if (ex > 0) s.totals.excavado += (ex * workHours) / needH;
 
-  while (st.progress >= 1) {
-    const nxt = nextStage(st.stage);
-    if (!nxt || nxt === "conexion") {
-      completeStructure(s, id);
-      break;
-    }
-    st.stage = nxt;
-    st.progress -= 1;
-    if (st.progress < 0) st.progress = 0;
-    if (s.phase < 2 && stageIndex(st.stage) >= 4) s.phase = 2;
-    if (s.phase < 3 && (id === "planta" || id === "viaducto") && stageIndex(st.stage) >= 5) {
-      s.phase = 3;
-    }
+  if (st.progress < 1) return;
+  const nxt = nextStage(st.stage);
+  if (!nxt || nxt === "conexion") {
+    completeStructure(s, id);
+    return;
+  }
+  st.stage = nxt;
+  st.progress = 0;
+  if (s.phase < 2 && stageIndex(st.stage) >= 4) s.phase = 2;
+  if (s.phase < 3 && (id === "planta" || id === "viaducto") && stageIndex(st.stage) >= 5) {
+    s.phase = 3;
   }
 }
 

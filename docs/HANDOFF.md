@@ -9,6 +9,20 @@ Libreta: localStorage del navegador. Sin red, sin POST, sin endpoint.
 
 Canon de este hilo: **no** `src/game`. No se reescribe de cero.
 
+## Maratón A–H — deudas
+
+Tras el maratón (4 wins a tiempo, 3 loses, 1 win tarde). No se toca FASE 1.
+
+1. Copy lluvia: en vertido el cuello es `LLUVIA — NO SE VIERTE`, nunca `FALTA HORMIGÓN` si llueve (repro G+H).
+2. Muro a saltos: un tick sube **una** etapa. Sin acero no cruza a armado.
+3. Pasividad bajo lluvia: excavación / armado / encofrado siguen (ritmo bajo). Solo el vertido espera. El gesto dice seguir otro frente, no parar el valle.
+
+| # | Ítem | Preview | Live grok.me |
+|---|---|---|---|
+| 1 | Lluvia en vertido ≠ FALTA HORMIGÓN | **OK** (tests) | hasta el próximo rebuild |
+| 2 | Muro no salta etapas | **OK** (tests) | hasta el próximo rebuild |
+| 3 | Bajo lluvia el frente no-vertido sigue | **OK** (tests) | hasta el próximo rebuild |
+
 ## FASE 1 — salida de beta
 
 Commit: https://github.com/dinepiyini-max/eltiempoconstruye/commit/5293a0fb8788b383a4414268ab0d3272b3d193b5
@@ -118,7 +132,7 @@ No idle. No frentes nuevos. No endpoint. No PWA. No seed. No 4º contrato. No of
 - Pace, foco, cambio de hoja, NUEVA PARTIDA, toast de viaje / save-fail / TOP: `src/lib/obra/store.ts`
 - Saves: `src/lib/obra/persist.ts` — claves `obra.jefe` / `obra.visita`. `snapshotState` allowlist. `saveState` → `boolean`.
 - Mapa sin glifos ajenos: `src/lib/obra/draw.ts`
-- Tests: `src/lib/obra/persist.test.ts` (41)
+- Tests: `src/lib/obra/persist.test.ts` (45)
 - QA Playwright: `artifacts/pass6-qa.mjs` (8/8 en preview)
 
 ## FALLA conocida
