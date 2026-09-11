@@ -10,6 +10,7 @@ import {
   bottleneckOf,
   bottleGloss,
   composeAbsenceLine,
+  composeResumeLine,
   contractClock,
   daysUntilFlood,
   floodLine,
@@ -71,6 +72,15 @@ describe("persistencia", () => {
     assert.equal(round.clockPace, "normal");
     assert.equal((round as { junk?: unknown }).junk, undefined);
     assert.equal(round.lastNotice, null);
+  });
+
+  it("composeResumeLine nombra día, fase y frentes firmados", () => {
+    const s = createInitialState();
+    s.survey = 1;
+    signFirst(s, "camino");
+    signFirst(s, "puente");
+    s.phase = 2;
+    assert.equal(composeResumeLine(s), "REANUDA · Día 01 · Fase II · firmados: CAMINO, PUENTE");
   });
 
   it("una etapa ya avanzada se considera pagada", () => {

@@ -9,7 +9,20 @@ Libreta: localStorage del navegador. Sin red, sin POST, sin endpoint.
 
 Canon de este hilo: **no** `src/game`. No se reescribe de cero.
 
+## Banner REANUDA (este pase)
+
+Tras F5 / reabrir partida guardada: una línea visible, sin hover, sin recorte.
+
+Formato: `REANUDA · Día 01 · Fase II · firmados: CAMINO, PUENTE`
+
+Cableado: `hydrate` y `catchUp` ponen `resumeLine`. `ResumeBanner` en AppShell, debajo del cajetín. Sin `truncate`.
+
+| # | Ítem | Preview | Live grok.me |
+|---|---|---|---|
+| 1 | F5 tras firmar → banner visible | **OK** — `REANUDA · Día 01 · Fase II · firmados: PUENTE` | Pase 6 ya muestra un banner; el texto nuevo llega con el próximo rebuild |
+
 ## Pase 6
+
 
 Commit: https://github.com/dinepiyini-max/eltiempoconstruye/commit/84431440fd8fd0d6379b547168a6cc119f9f7fd9
 
@@ -74,7 +87,7 @@ No idle. No frentes nuevos. No endpoint. No PWA. No seed. No pantalla de victori
 - Pace, foco, cambio de hoja, NUEVA PARTIDA, toast de viaje / save-fail / TOP: `src/lib/obra/store.ts`
 - Saves: `src/lib/obra/persist.ts` — claves `obra.jefe` / `obra.visita`. `snapshotState` allowlist. `saveState` → `boolean`.
 - Mapa sin glifos ajenos: `src/lib/obra/draw.ts`
-- Tests: `src/lib/obra/persist.test.ts` (35)
+- Tests: `src/lib/obra/persist.test.ts` (36)
 - QA Playwright: `artifacts/pass6-qa.mjs` (8/8 en preview)
 
 ## FALLA conocida

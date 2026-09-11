@@ -15,7 +15,6 @@ import {
   BOTTLE_GLOSS,
   FRONT_LABEL,
   OFICIO_KEY,
-  PHASE_LABEL,
   PROTO_DEF,
   STRUCTURE_DEF,
   STRUCTURE_NAME,
@@ -30,7 +29,7 @@ import {
   nextStage,
   stageIndex,
 } from "./catalog";
-import { clockParts } from "./format";
+import { clockParts, pad2 } from "./format";
 import { FLOOD, SCRIPT_60 } from "./pliego";
 import type {
   Contract,
@@ -1139,8 +1138,9 @@ export function toggleRegime(s: GameState): void {
 export function composeResumeLine(s: GameState): string {
   const clock = clockParts(s.siteMinutes);
   const signed = V1_CONTRACT_IDS.filter((id) => s.structures[id].opened).map((id) => STRUCTURE_NAME_UP[id]);
-  const fronts = signed.length ? `firmados ${signed.join(" · ")}` : "ningún frente firmado";
-  return `${clock.label} · ${PHASE_LABEL[s.phase]} · ${fronts}`;
+  const phase = s.phase === 3 ? "Fase III" : s.phase === 2 ? "Fase II" : "Fase I";
+  const fronts = signed.length ? `firmados: ${signed.join(", ")}` : "ningún frente firmado";
+  return `REANUDA · Día ${pad2(clock.day)} · ${phase} · ${fronts}`;
 }
 
 export function transferTop(s: GameState, from: FrontId, to: FrontId): { ok: boolean; reason?: string } {
