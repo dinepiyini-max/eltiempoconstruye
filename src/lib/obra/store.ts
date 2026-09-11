@@ -500,16 +500,6 @@ declare global {
   }
 }
 
-if (typeof window !== "undefined" && import.meta.env.DEV) {
-  window.__obra = {
-    get: () => useObra.getState(),
-    slot: () => useObra.getState().slot,
-    keys: () => {
-      try {
-        return Object.keys(window.localStorage).filter((k) => k.startsWith("obra."));
-      } catch {
-        return [];
-      }
-    },
-  };
+if (import.meta.env.DEV) {
+  void import("./inspect-obra");
 }

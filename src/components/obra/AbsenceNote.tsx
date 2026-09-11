@@ -34,9 +34,10 @@ export function ResumeBanner() {
         type="button"
         onClick={dismiss}
         aria-label="CERRAR"
-        className="small-caps shrink-0 min-h-11 min-w-11 border border-ink/40 px-2 text-[0.55rem] tracking-[0.14em] text-ink"
+        className="small-caps shrink-0 min-h-11 border border-ink/40 px-2 text-[0.55rem] tracking-[0.14em] text-ink"
       >
-        CERRAR
+        <span aria-hidden="true">×</span>
+        <span className="ml-1">CERRAR</span>
       </button>
     </div>
   );

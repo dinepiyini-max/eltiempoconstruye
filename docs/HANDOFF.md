@@ -11,8 +11,9 @@ Canon de este hilo: **no** `src/game`. No se reescribe de cero.
 
 ## Este pase
 
-1. `window.__obra` solo si `import.meta.env.DEV`. En prod no existe. Solo `get` / `slot` / `keys`.
-2. Banner REANUDA (JEFE): `hydrate` con save siempre setea `resumeLine`. Encima de OBRA. Texto `REANUDA · Día NN · Fase X · firmados: …`. Visible ≥ 8 s. Solo **CERRAR**. Click en el cajetín no lo tira. Hard reload lo vuelve a mostrar.
+1. `window.__obra` solo si `import.meta.env.DEV` (import dinámico de `inspect-obra.ts`). En prod no existe. Solo `get` / `slot` / `keys`. Sin mutators.
+2. Banner REANUDA (JEFE): `hydrate` con save siempre setea `resumeLine`. Encima de OBRA. Texto `REANUDA · Día NN · Fase X · firmados: …`. Visible ≥ 8 s. Solo **CERRAR / ×**. Click en el cajetín no lo tira. Hard reload lo vuelve a mostrar.
+
 
 
 
@@ -20,9 +21,10 @@ Canon de este hilo: **no** `src/game`. No se reescribe de cero.
 
 | # | Ítem | Build prod / preview | Live grok.me |
 |---|---|---|---|
-| A | `typeof window.__obra === "undefined"` en prod | **OK** | **FALLA** — grok.me aún expone el hook (commit anterior). Este commit lo quita. |
+| A | `typeof window.__obra === "undefined"` en prod | **OK** | **FALLA** — grok.me aún expone el hook (bundle `routes-CEbVtfy4.js`). Este commit lo saca del grafo de prod. |
 | B | JEFE: firmar → F5 → banner ≥ 8 s + CERRAR | **OK** | **OK** |
 | C | hard reload → banner otra vez | **OK** | **OK** |
+
 
 
 
