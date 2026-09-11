@@ -1,4 +1,4 @@
-import { CLOCK_HOLD_LINE, PACE_CAPTION, PHASE_LABEL, REGIME_CAPTION, RESOURCE_HINT, SUPPLY } from "@/lib/obra/catalog";
+import { CLOCK_HOLD_LINE, GLOSS, PACE_CAPTION, PHASE_LABEL, REGIME_CAPTION, RESOURCE_HINT, SUPPLY } from "@/lib/obra/catalog";
 import { clockParts, formatInt } from "@/lib/obra/format";
 import { CARGO, MANDANTE, PROYECTO, TESIS } from "@/lib/obra/pliego";
 import { floodLine, hasSignedFront } from "@/lib/obra/sim";
@@ -59,6 +59,7 @@ export function TitleBlock() {
             {CARGO} · {PROYECTO} · {MANDANTE}
           </p>
           <p className="mt-0.5 max-w-xl font-serif text-sm italic text-ink-soft sm:text-[0.95rem]">{TESIS}</p>
+          <p className="mt-1 small-caps text-[0.5rem] tracking-[0.12em] text-ink-soft">{GLOSS.sitio}</p>
         </div>
 
         <nav className="flex flex-wrap items-center gap-1 pt-1" aria-label="Hojas">
@@ -93,7 +94,6 @@ export function TitleBlock() {
           <span className="small-caps text-[0.62rem] text-cyan">{PHASE_LABEL[phase]}</span>
           <span className="font-sans text-sm tabular-nums tracking-wide">{clock.label}</span>
           <span
-            title={RESOURCE_HINT["CRECIDA Q50"]}
             className={`small-caps text-[0.58rem] ${
               floodStatus === "incumplido" ? "text-stamp" : floodStatus === "a-salvo" ? "text-cyan" : "text-ink-soft"
             }`}
@@ -158,6 +158,9 @@ export function TitleBlock() {
         ) : null}
         {closed ? <NuevaPartida compact /> : null}
       </div>
+      <p className="mt-1 font-serif text-xs leading-snug text-ink-soft">
+        {GLOSS.q50} · {GLOSS.top} · {GLOSS.cuello}
+      </p>
 
       {lastNotice ? (
         <p className="mt-2 max-w-3xl font-serif text-sm leading-snug text-rust">{lastNotice}</p>

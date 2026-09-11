@@ -16,6 +16,8 @@ import { STRUCTURE_IDS, STAGES, V1_CONTRACT_IDS } from "./types";
 export const SITE_MINUTES_PER_REAL_SECOND = 8;
 /** El valle no simula más de 8 h reales de ausencia. */
 export const OFFLINE_CAP_MS = 8 * 60 * 60 * 1000;
+/** Cerrar 30 s no debe comer horas de sitio. */
+export const APPLY_ELAPSED_SKIP_MS = 45_000;
 
 /** Dos cajas. saveState nunca escribe la otra. */
 export const SLOT_KEYS: Record<SaveSlot, { live: string; bak: string }> = {
@@ -114,6 +116,16 @@ export const RESOURCE_HINT: Record<string, string> = {
   TOP: "Topógrafos. Hacen falta en levantado y trazado.",
 };
 
+/** Glosas a la vista. No viven solo en title/hover. */
+export const GLOSS = {
+  q50: "Q50 = crecida de diseño · 1 en 50 años",
+  top: "TOP = topógrafo",
+  cuello: "cuello = lo que hoy frena el frente",
+  sitio: "Emplazamiento de estudio · no corresponde a un predio real.",
+} as const;
+
+export const SAVE_FAIL_LINE = "No se pudo guardar. El navegador bloqueó el almacén.";
+
 export const REGIME_CAPTION = {
   turno: "07–18 h · de noche la obra espera. Tocar para jornada forzada.",
   siempre: "No cierra. De noche se paga más y cansa. Tocar para volver al turno.",
@@ -130,8 +142,8 @@ export const BOTTLE_GLOSS: Record<string, string> = {
   "SIN CUADRILLA": "Nadie trabaja aquí. Asigna desde disponibles o abre OBRA.",
   "FALTA TOPÓGRAFO": "El trazado pide quien mida. Pasa un topógrafo desde disponibles, o quítalo de otro frente en OBRA.",
   "FALTAN OBREROS": "No hay manos. Pasa obreros desde disponibles, o quítalos de otro frente en OBRA.",
-  "FALTA ACERO": "Sin acero no se arma. Pide un lote en el cajetín (cifra de Acero).",
-  "FALTA HORMIGÓN": "Sin hormigón no se vierte. Pide un viaje en el cajetín (cifra de Hormigón).",
+  "FALTA ACERO": "El almacén no cubre el armado de esta etapa. Pide un lote en el cajetín (cifra de Acero).",
+  "FALTA HORMIGÓN": "El almacén no cubre el vertido de esta etapa. Pide un viaje en el cajetín (cifra de Hormigón).",
   "LLUVIA — NO SE VIERTE": "Llueve. El hormigón fresco no se vierte. Espera a que escampe.",
   "LLUVIA EN ESTE FRENTE": "Llueve aquí. El ritmo baja. No hay gesto: el frente espera.",
   "ARMADO DETENIDO — MATERIAL": "Falta material de armado. Pide acero en el cajetín.",
@@ -402,6 +414,7 @@ export function emptyStructure(id: StructureId): StructureState {
     opened: false,
     hoursWorked: 0,
     costAccrued: 0,
+    paidStage: null,
   };
 }
 

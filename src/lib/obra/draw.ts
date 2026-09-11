@@ -482,10 +482,6 @@ function drawWall(ctx: CanvasRenderingContext2D, f: Frame, s: GameState, pal: Pa
   ctx.restore();
 }
 
-function laterWorks(s: GameState): boolean {
-  return s.instruction === "dirige";
-}
-
 function drawPad(
   ctx: CanvasRenderingContext2D,
   f: Frame,
@@ -494,7 +490,7 @@ function drawPad(
   pal: Palette,
 ) {
   const st = s.structures[id];
-  if (!laterWorks(s) && !st.opened) return;
+  if (!st.opened) return;
   const def = STRUCTURE_DEF[id];
   if (surveyCover(def, s.survey) < 0.35 && !st.opened) return;
   const p = toS(f, def);
@@ -536,7 +532,7 @@ function drawPad(
 
 function drawViaduct(ctx: CanvasRenderingContext2D, f: Frame, s: GameState, pal: Palette) {
   const st = s.structures.viaducto;
-  if (!laterWorks(s) && !st.opened) return;
+  if (!st.opened) return;
   if (surveyCover(STRUCTURE_DEF.viaducto, s.survey) < 0.4 && !st.opened) return;
   const k = stageIndex(st.stage);
   ctx.save();
@@ -665,7 +661,7 @@ function labels(ctx: CanvasRenderingContext2D, f: Frame, s: GameState, pal: Pale
     const st = s.structures[id];
     const def = STRUCTURE_DEF[id];
     const v1 = (V1_CONTRACT_IDS as readonly string[]).includes(id);
-    if (!v1 && !st.opened && s.instruction !== "dirige") continue;
+    if (!v1 && !st.opened) continue;
     if (s.survey < 1 && surveyCover(def, s.survey) < 0.5 && !st.opened) continue;
     const p = toS(f, def);
     const active = s.selected === id;
@@ -855,7 +851,7 @@ export function hitTest(x: number, y: number, w: number, h: number, s: GameState
     const def = STRUCTURE_DEF[id];
     const opened = s.structures[id].opened;
     const v1 = (V1_CONTRACT_IDS as readonly string[]).includes(id);
-    if (!v1 && !opened && s.instruction !== "dirige") continue;
+    if (!v1 && !opened) continue;
     if (surveyCover(def, s.survey) < 0.35 && !opened) continue;
     const p = toS(f, def);
     const d = dist({ x, y }, p);

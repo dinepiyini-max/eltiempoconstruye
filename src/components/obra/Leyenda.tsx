@@ -14,12 +14,13 @@ export function Leyenda() {
       </button>
       {open ? (
         <ul className="space-y-1 border-t border-rule/70 pb-1 pt-2 font-serif text-xs leading-snug text-ink">
+          <li>CAMINO · PUENTE · MURO — frentes del pliego</li>
           <li>Bandera — frente abierto</li>
           <li>Círculos — cuadrilla en el frente</li>
           <li>Punteado → continuo → doble — etapa</li>
           <li>Cian ancho — zona de inundación</li>
           <li>Sello TURNO / SIEMPRE — régimen</li>
-          <li>Óxido en ficha — cuello</li>
+          <li>Óxido en ficha — cuello (lo que hoy frena el frente)</li>
         </ul>
       ) : null}
     </div>

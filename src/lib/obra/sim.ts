@@ -21,6 +21,7 @@ import {
   STAGE_LABEL,
   SITE_MINUTES_PER_REAL_SECOND,
   OFFLINE_CAP_MS,
+  APPLY_ELAPSED_SKIP_MS,
   SUPPLY,
   SURVEY_REAL_SECONDS,
   WAGE,
@@ -221,7 +222,7 @@ export function bottleneckOf(s: GameState, id: StructureId): string | null {
   }
   if (people.obreros < 1) return "FALTAN OBREROS";
   const need = materialsFor(id, st.stage);
-  const unpaid = st.progress < 0.02;
+  const unpaid = st.paidStage !== st.stage;
   if (unpaid && need.acero > 0 && s.resources.acero < need.acero) return "FALTA ACERO";
   if (unpaid && need.hormigon > 0 && s.resources.hormigon < need.hormigon) return "FALTA HORMIGÓN";
 
@@ -232,7 +233,7 @@ export function bottleneckOf(s: GameState, id: StructureId): string | null {
   }
   if (rain) return "LLUVIA EN ESTE FRENTE";
   const mat = sls.find((d) => d.kind === "material");
-  if (mat && st.stage === "armado" && s.resources.acero < Math.max(1, need.acero)) {
+  if (mat && st.stage === "armado" && unpaid && s.resources.acero < Math.max(1, need.acero)) {
     return "ARMADO DETENIDO — MATERIAL";
   }
 
@@ -410,12 +411,21 @@ export function tickSurveyReal(s: GameState, dtSec: number): boolean {
 }
 
 function enterStageCosts(s: GameState, id: StructureId, stage: StructureStage): boolean {
+  const st = s.structures[id];
+  if (st.paidStage === stage) return true;
   const need = materialsFor(id, stage);
   if (s.resources.acero < need.acero || s.resources.hormigon < need.hormigon) return false;
   s.resources.acero -= need.acero;
   s.resources.hormigon -= need.hormigon;
   s.totals.acero += need.acero;
   s.totals.hormigon += need.hormigon;
+  st.paidStage = stage;
+  const bits: string[] = [];
+  if (need.acero > 0) bits.push(`${need.acero} t de acero`);
+  if (need.hormigon > 0) bits.push(`${need.hormigon} m³ de hormigón`);
+  if (bits.length) {
+    s.lastNotice = `${STRUCTURE_NAME[id]} · se cargan ${bits.join(" y ")} al frente.`;
+  }
   return true;
 }
 
@@ -569,10 +579,7 @@ function tickFront(s: GameState, id: StructureId, hours: number): void {
   const def = STRUCTURE_DEF[id];
   const needH = def.stageHours[st.stage as keyof typeof def.stageHours] ?? 4;
   const workHours = hours * ratio;
-  const need = materialsFor(id, st.stage);
-  if ((need.acero > 0 || need.hormigon > 0) && st.progress < 0.02) {
-    if (!enterStageCosts(s, id, st.stage)) return;
-  }
+  if (!enterStageCosts(s, id, st.stage)) return;
 
   st.progress += workHours / needH;
   st.hoursWorked += workHours;
@@ -771,7 +778,10 @@ function tryEvent(s: GameState): boolean {
   s.events = s.events.slice(0, 14);
 
   if (pick.kind === "material") {
-    s.resources.acero = Math.max(0, s.resources.acero - (6 + rnd(s) * 8));
+    const took = Math.round(6 + rnd(s) * 8);
+    s.resources.acero = Math.max(0, s.resources.acero - took);
+    const dest = target === "site" ? "el almacén" : `el frente ${FRONT_LABEL[target]}`;
+    s.events[0]!.body = `Faltante de ${took} t de acero en ${dest}. El armado se detiene hasta pedir un lote.`;
   }
   if (pick.kind === "diseno" && target !== "site") {
     const st = s.structures[target];
@@ -840,7 +850,7 @@ export function applyElapsed(s: GameState, now: number): GameState {
   }
   const elapsed = Math.min(Math.max(0, now - s.realLastSeen), OFFLINE_CAP_MS);
   s.realLastSeen = now;
-  if (elapsed < 12_000) {
+  if (elapsed < APPLY_ELAPSED_SKIP_MS) {
     s.absence = null;
     return s;
   }
@@ -1086,6 +1096,7 @@ export function openStructure(s: GameState, id: StructureId): void {
   st.opened = true;
   st.stage = s.survey >= 1 ? "levantado" : "vacio";
   st.progress = 0;
+  st.paidStage = null;
   staffNewFront(s, id);
   s.selected = id;
   if (s.instruction === "define" || s.instruction === "levanta") s.instruction = "dirige";
@@ -1155,28 +1166,47 @@ export function orderSupply(s: GameState, kind: "hormigon" | "acero"): { ok: boo
     });
   }
 
-  const watch =
-    s.selected && s.structures[s.selected]?.opened
-      ? s.selected
-      : STRUCTURE_IDS.find((id) => {
-          const b = bottleneckOf(s, id);
-          return b === "FALTA ACERO" || b === "FALTA HORMIGÓN" || b === "ARMADO DETENIDO — MATERIAL";
-        });
-  const bottle = watch ? bottleneckOf(s, watch) : null;
   const arrived = `Llegó un ${spec.noun}: ${spec.qty} ${spec.unit}`;
-  if (bottle === "FALTA ACERO" || bottle === "ARMADO DETENIDO — MATERIAL") {
-    const need = watch ? materialsNeed(s, watch).acero : 0;
-    const miss = Math.max(0, need - s.resources.acero);
-    s.lastNotice = `${arrived} · este frente aún necesita ${miss || need} t.`;
-  } else if (bottle === "FALTA HORMIGÓN") {
-    const need = watch ? materialsNeed(s, watch).hormigon : 0;
-    const miss = Math.max(0, need - s.resources.hormigon);
-    s.lastNotice = `${arrived} · este frente aún necesita ${miss || need} m³.`;
-  } else if (bottle) {
-    s.lastNotice = `${arrived} · este frente aún: ${bottle}.`;
+  const consumer = STRUCTURE_IDS.find((id) => {
+    const st = s.structures[id];
+    if (!st.opened || st.stage === "conexion") return false;
+    const need = materialsFor(id, st.stage);
+    const qty = kind === "acero" ? need.acero : need.hormigon;
+    return qty > 0 && st.paidStage !== st.stage;
+  });
+  if (consumer) {
+    const st = s.structures[consumer];
+    const need = materialsFor(consumer, st.stage);
+    const qty = kind === "acero" ? need.acero : need.hormigon;
+    const have = kind === "acero" ? s.resources.acero : s.resources.hormigon;
+    const unit = spec.unit;
+    const bottle = bottleneckOf(s, consumer);
+    if (have < qty) {
+      s.lastNotice = `${arrived} al almacén. Aún no se usa en ${FRONT_LABEL[consumer]}: faltan ${Math.ceil(qty - have)} ${unit}.`;
+    } else if (
+      bottle &&
+      bottle !== "FALTA ACERO" &&
+      bottle !== "FALTA HORMIGÓN" &&
+      bottle !== "ARMADO DETENIDO — MATERIAL"
+    ) {
+      s.lastNotice = `${arrived} al frente ${FRONT_LABEL[consumer]}. Aún no se usa: ${bottle}.`;
+    } else {
+      s.lastNotice = `${arrived} al frente ${FRONT_LABEL[consumer]}. Se carga a ${STAGE_LABEL[st.stage].toLowerCase()}.`;
+    }
   } else {
-    s.lastNotice =
-      kind === "hormigon" ? `${arrived}. Ya se puede verter.` : `${arrived}. Ya se puede armar.`;
+    const watch =
+      s.selected && s.structures[s.selected]?.opened
+        ? s.selected
+        : STRUCTURE_IDS.find((id) => {
+            const b = bottleneckOf(s, id);
+            return b === "FALTA ACERO" || b === "FALTA HORMIGÓN" || b === "ARMADO DETENIDO — MATERIAL";
+          });
+    const bottle = watch ? bottleneckOf(s, watch) : null;
+    if (bottle) {
+      s.lastNotice = `${arrived} al almacén. Aún no se usa: ${bottle}.`;
+    } else {
+      s.lastNotice = `${arrived} al almacén. Aún no se usa: ningún frente carga este material hoy.`;
+    }
   }
   return { ok: true };
 }

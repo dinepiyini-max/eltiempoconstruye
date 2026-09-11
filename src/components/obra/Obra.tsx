@@ -1,4 +1,4 @@
-import { FRONT_LABEL, OFICIO_KEY, RESOURCE_HINT, STAGE_LABEL, NEXT_HITO, STRUCTURE_NAME_UP, VALLEY_NAME } from "@/lib/obra/catalog";
+import { FRONT_LABEL, GLOSS, OFICIO_KEY, RESOURCE_HINT, STAGE_LABEL, NEXT_HITO, STRUCTURE_NAME_UP, VALLEY_NAME } from "@/lib/obra/catalog";
 import { clockParts } from "@/lib/obra/format";
 import {
   bottleAction,
@@ -54,6 +54,7 @@ export function Obra() {
       <p className="mt-4 small-caps text-[0.58rem] text-ink">
         DISPONIBLES · {pool.obreros} OBR · {pool.capataces} CAP · {pool.ingenieros} ING · {pool.topografos} TOP
       </p>
+      <p className="mt-1 font-serif text-xs text-ink-soft">{GLOSS.top}</p>
 
       {opened.length === 0 && !ensayoOn ? (
         <p className="mt-10 small-caps text-[0.72rem] tracking-[0.28em] text-ink">Ningún frente.</p>
@@ -69,7 +70,12 @@ export function Obra() {
                 <th className="py-2 pr-3 font-medium">Productividad</th>
                 <th className="py-2 pr-3 font-medium">Estado</th>
                 <th className="py-2 pr-3 font-medium">Hito</th>
-                <th className="py-2 font-medium">Cuello</th>
+                <th className="py-2 font-medium">
+                  Cuello
+                  <span className="mt-0.5 block font-serif text-[0.7rem] font-normal normal-case tracking-normal text-ink-soft">
+                    {GLOSS.cuello}
+                  </span>
+                </th>
               </tr>
             </thead>
             <tbody>

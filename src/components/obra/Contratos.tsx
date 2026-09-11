@@ -1,4 +1,4 @@
-import { NEXT_HITO, STAGE_LABEL, STRUCTURE_NAME, VALLEY_NAME } from "@/lib/obra/catalog";
+import { GLOSS, NEXT_HITO, STAGE_LABEL, STRUCTURE_NAME, VALLEY_NAME } from "@/lib/obra/catalog";
 import { difficultyMarks, formatInt } from "@/lib/obra/format";
 import { MANDANTE, PLIEGO_LINES, SCRIPT_60 } from "@/lib/obra/pliego";
 import {
@@ -36,9 +36,10 @@ export function Contratos() {
           Tres encargos del mismo pliego. Prestigio {formatInt(prestigio)}.
         </p>
         <p className="mt-2 small-caps text-[0.6rem] text-stamp">{flood}</p>
+        <p className="mt-1 font-serif text-xs italic text-ink-soft">{GLOSS.q50}</p>
         <p className="mt-2 font-serif text-sm leading-snug text-ink-soft">{PLIEGO_LINES[2]}</p>
       </header>
-      <ol className="mt-3 flex flex-col gap-3 pb-8">
+      <ol className="mt-3 flex flex-col gap-3 overflow-visible pb-16">
         {contracts.map((c, i) => (
           <ContractBlock key={c.id} contract={c} index={i + 1} />
         ))}
@@ -64,7 +65,7 @@ function ContractBlock({ contract, index }: { contract: Contract; index: number 
   const estimado = `${contract.durationDays} días · obra estimada del frente`;
 
   return (
-    <li className="border border-ink/20 bg-paper px-4 py-4 shadow-sheet">
+    <li className="overflow-visible border border-ink/20 bg-paper px-4 py-4 shadow-sheet">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="small-caps text-[0.6rem] text-ink-soft">Contrato {String(index).padStart(3, "0")}</p>
         <p className="small-caps text-[0.6rem] text-stamp">{STATUS[contract.status]}</p>
@@ -97,17 +98,22 @@ function ContractBlock({ contract, index }: { contract: Contract; index: number 
           </>
         ) : null}
       </dl>
+      {contract.status === "activo" ? (
+        <p className="mt-2 font-serif text-xs italic text-ink-soft">{GLOSS.cuello}</p>
+      ) : null}
       {action ? <p className="mt-2 font-serif text-sm text-ink">{action}</p> : null}
       {gap ? <p className="mt-3 small-caps text-[0.6rem] text-rust">{gap}</p> : null}
       {gloss ? <p className="mt-2 max-w-prose font-serif text-sm leading-snug text-ink-soft">{gloss}</p> : null}
       {canSign ? (
-        <button
-          type="button"
-          onClick={() => accept(contract.id)}
-          className="stamp mt-4 min-h-11 px-4 py-1 text-[0.68rem]"
-        >
-          {SCRIPT_60.firmar}
-        </button>
+        <div className="mt-4 overflow-visible py-4 pr-4">
+          <button
+            type="button"
+            onClick={() => accept(contract.id)}
+            className="stamp min-h-11 px-4 py-2 text-[0.68rem]"
+          >
+            {SCRIPT_60.firmar}
+          </button>
+        </div>
       ) : null}
       {contract.status === "activo" || contract.status === "cumplido" ? (
         <p className="stamp mt-4 inline-block px-3 py-1 text-[0.62rem] opacity-80">{STATUS[contract.status]}</p>

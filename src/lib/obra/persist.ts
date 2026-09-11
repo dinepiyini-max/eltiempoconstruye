@@ -51,8 +51,8 @@ export function readSlotFromSearch(search: string): SaveSlot {
   }
 }
 
-export function saveState(state: GameState, slot: SaveSlot): void {
-  if (typeof window === "undefined") return;
+export function saveState(state: GameState, slot: SaveSlot): boolean {
+  if (typeof window === "undefined") return true;
   try {
     state.realLastSeen = Date.now();
     const snap = { ...state, absence: null };
@@ -60,8 +60,9 @@ export function saveState(state: GameState, slot: SaveSlot): void {
     const prev = window.localStorage.getItem(keys.live);
     if (prev) window.localStorage.setItem(keys.bak, prev);
     window.localStorage.setItem(keys.live, JSON.stringify(snap));
+    return true;
   } catch {
-    /* private mode / quota */
+    return false;
   }
 }
 
@@ -178,6 +179,9 @@ function migrateStructures(old: unknown): Record<StructureId, StructureState> {
       ...extra,
       id,
     };
+    if (out[id].paidStage == null && Number(out[id].progress) > 0) {
+      out[id].paidStage = out[id].stage;
+    }
   }
   return out;
 }

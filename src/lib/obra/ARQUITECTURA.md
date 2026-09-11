@@ -68,7 +68,10 @@ def order_supply(state, kind):  # "hormigon" | "acero"
 ```
 
 Sin hormigón no se entra a `estructura`. Sin acero no se entra a `armado`.
-Eso es un tope duro (`HARD_STOP`), no un texto decorativo.
+Eso es un tope duro (`HARD_STOP`), no un texto decorativo. El cuello solo
+dice FALTA si `paidStage !== stage` y el almacén no cubre. Pagada la etapa,
+el inventario vacío no miente FALTA. Cada cargo deja `lastNotice` con
+cantidad; cada viaje nombra destino (almacén / frente).
 
 ## Contratos = frentes del pliego
 

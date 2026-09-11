@@ -23,11 +23,11 @@ export function NuevaPartida({ compact = false }: { compact?: boolean }) {
   return (
     <div className="flex max-w-sm flex-col gap-2 border border-ink/30 bg-paper px-3 py-2">
       <p className="font-serif text-sm leading-snug text-ink">
-        Se borra el valle, el pliego y el reloj. {notes ? `${notes} notas en la libreta.` : "Libreta vacía."}
+        Se borra el valle, el pliego y el reloj. {notes ? `${notes} notas locales en la libreta.` : "Libreta vacía."}
       </p>
       <label className="flex min-h-11 items-center gap-2 font-serif text-sm text-ink">
         <input type="checkbox" checked={keep} onChange={(e) => setKeep(e.target.checked)} />
-        Conservar notas de campo
+        ¿Conservar notas locales?
       </label>
       <div className="flex flex-wrap gap-2">
         <button

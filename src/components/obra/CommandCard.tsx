@@ -1,4 +1,4 @@
-import { STRUCTURE_NAME } from "@/lib/obra/catalog";
+import { GLOSS, STRUCTURE_NAME } from "@/lib/obra/catalog";
 import { commandLines } from "@/lib/obra/draw";
 import { SCRIPT_60 } from "@/lib/obra/pliego";
 import {
@@ -85,6 +85,7 @@ export function CommandCard() {
           />
         ) : null}
       </dl>
+      <p className="mt-1 font-serif text-xs italic text-ink-soft">{GLOSS.cuello}</p>
 
       {gloss ? <p className="mt-3 font-serif text-sm leading-snug text-ink-soft">{gloss}</p> : null}
       {action ? <p className="mt-1 font-serif text-sm text-ink">{action}</p> : null}

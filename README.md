@@ -13,18 +13,23 @@ Te nombra jefe de obra el Consorcio Municipal del Valle del Yuna. Encargo: conec
 
 Hojas: **PLANO · OBRA · CONTRATOS · ARCHIVO**. LIBRETA es un panel de campo, no una hoja.
 
+Emplazamiento de estudio · no corresponde a un predio real.
+
 ## Reloj y fe
 
+- Hasta firmar el primer frente el reloj está en **PAUSA**. Texto: «El reloj no espera — tú decides cuándo soltarlo.» Luego NORMAL.
 - Ritmo **NORMAL / LENTO / PAUSA**. Cambiar de hoja no gasta horas de sitio.
-- Escribir en la libreta pausa el reloj.
+- Escribir en la libreta pausa el reloj. Al salir, el ritmo previo.
 - Un solo contador: `CRECIDA Q50 · faltan N días`. El plazo de un frente se llama «obra estimada del frente».
-- Si hay acero u hormigón, el cuello no dice FALTA.
-- Sin personal en disponibles: el botón queda disabled, con la razón en una línea.
+- Si hay acero u hormigón para el gesto, el cuello no dice FALTA. Nombra la causa real (lluvia, personal, etapa, lote).
+- El material solo baja con un gesto o evento que dice qué y cuánto. El viaje nombra destino (almacén / frente) y por qué no se usa si aplica.
+- Sin personal en disponibles: el botón queda disabled, con la razón en una línea. TOP vacío: «SIN TOP EN RESERVA».
 - La ficha del plano se reabre siempre (clic en la pieza o en CAMINO / PUENTE / MURO).
+- F5 / cerrar 30 s: misma fase, mismo día, mismos frentes. Si localStorage falla, toast.
 
 ## Libreta
 
-Dock a la derecha. Tipos **BUG · MEJORA · DUDA · NOTA**. El draft no se pierde al cambiar de hoja. NUEVA PARTIDA pregunta si conservar las notas. Vive solo en el navegador. Sin red, sin POST.
+Dock a la derecha. Tipos **BUG · MEJORA · DUDA · NOTA**. El draft no se pierde al cambiar de hoja. NUEVA PARTIDA pregunta «¿Conservar notas locales?». Vive solo en el navegador. Sin red, sin POST.
 
 ## Saves
 

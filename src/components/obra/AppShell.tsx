@@ -45,7 +45,7 @@ export function AppShell({ slot }: { slot: SaveSlot }) {
                 <Plano />
               </div>
               {page !== "plano" ? (
-                <div className="absolute inset-0 z-10 overflow-y-auto overflow-x-hidden bg-paper">
+                <div className="absolute inset-0 z-10 overflow-y-auto overflow-x-hidden bg-paper px-1">
                   {page === "obra" ? <Obra /> : null}
                   {page === "contratos" ? <Contratos /> : null}
                   {page === "archivo" ? <Archivo /> : null}

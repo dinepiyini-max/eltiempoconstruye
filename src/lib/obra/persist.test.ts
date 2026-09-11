@@ -1,6 +1,6 @@
 import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { createInitialState, OFFLINE_CAP_MS, SLOT_KEYS } from "./catalog.ts";
+import { createInitialState, APPLY_ELAPSED_SKIP_MS, OFFLINE_CAP_MS, SLOT_KEYS } from "./catalog.ts";
 import { clockParts } from "./format.ts";
 import { FLOOD } from "./pliego.ts";
 import { hydrateParsed, migrateLibreta } from "./persist.ts";
@@ -8,6 +8,7 @@ import {
   acceptContract,
   applyElapsed,
   bottleneckOf,
+  bottleGloss,
   composeAbsenceLine,
   contractClock,
   daysUntilFlood,
@@ -46,6 +47,15 @@ describe("persistencia", () => {
     assert.ok(parsed.contracts[0]?.purpose);
     assert.equal(parsed.clockPace, "normal");
     assert.equal(parsed.page, "plano");
+  });
+
+  it("una etapa ya avanzada se considera pagada", () => {
+    const parsed = hydrateParsed({
+      version: 1,
+      structures: { puente: { opened: true, stage: "armado", progress: 0.4 } },
+    });
+    assert.equal(parsed?.structures.puente.paidStage, "armado");
+    assert.equal(parsed?.structures.camino.paidStage, null);
   });
 
   it("sin frente firmado el reloj hidrata en pausa", () => {
@@ -161,6 +171,18 @@ describe("reloj", () => {
     assert.equal(s.siteMinutes, before);
   });
 
+  it("cerrar 30 s no come horas de sitio", () => {
+    const s = createInitialState();
+    s.survey = 1;
+    signFirst(s, "puente");
+    const before = s.siteMinutes;
+    const now = Date.now();
+    s.realLastSeen = now;
+    applyElapsed(s, now + 30_000);
+    assert.equal(s.siteMinutes, before);
+    assert.ok(30_000 < APPLY_ELAPSED_SKIP_MS);
+  });
+
   it("ausencia de día no miente Noche si el turno está abierto", () => {
     const line = composeAbsenceLine([{ name: "Yuna", delta: "esperó" }], false, 1, 1);
     assert.equal(line, "El Yuna siguió.");
@@ -271,13 +293,14 @@ describe("inventario y personal", () => {
     orderSupply(s, "acero");
     assert.equal(s.resources.acero, 8);
     assert.equal(bottleneckOf(s, "puente"), "FALTA ACERO");
-    assert.match(s.lastNotice ?? "", /aún necesita/);
+    assert.match(s.lastNotice ?? "", /al almacén/);
+    assert.match(s.lastNotice ?? "", /faltan/);
 
     orderSupply(s, "acero");
     assert.equal(s.resources.acero, 16);
     assert.notEqual(bottleneckOf(s, "puente"), "FALTA ACERO");
     assert.notEqual(bottleneckOf(s, "puente"), "ARMADO DETENIDO — MATERIAL");
-    assert.match(s.lastNotice ?? "", /Ya se puede armar/);
+    assert.match(s.lastNotice ?? "", /al frente PUENTE/);
   });
 
   it("un slowdown de material no miente si el acero ya alcanza", () => {
@@ -335,6 +358,60 @@ describe("inventario y personal", () => {
     }
     shiftOficio(s, crew.id, "topografo", 1);
     assert.equal(s.lastNotice, "SIN TOP EN RESERVA");
+  });
+
+  it("si el stock cubre, el cuello no dice FALTA ni Sin hormigón", () => {
+    const s = createInitialState();
+    s.survey = 1;
+    signFirst(s, "puente");
+    s.structures.puente.stage = "armado";
+    s.structures.puente.progress = 0;
+    s.structures.puente.paidStage = null;
+    s.resources.acero = 20;
+    const bottle = bottleneckOf(s, "puente");
+    assert.notEqual(bottle, "FALTA ACERO");
+    assert.notEqual(bottle, "ARMADO DETENIDO — MATERIAL");
+    assert.doesNotMatch(bottleGloss(bottle) ?? "", /Sin acero no se arma/);
+    assert.doesNotMatch(bottleGloss(bottle) ?? "", /Sin hormigón no se vierte/);
+  });
+
+  it("pagada la etapa, inventario vacío no miente FALTA", () => {
+    const s = createInitialState();
+    s.survey = 1;
+    signFirst(s, "puente");
+    s.structures.puente.stage = "armado";
+    s.structures.puente.progress = 0.01;
+    s.structures.puente.paidStage = "armado";
+    s.resources.acero = 0;
+    s.slowdowns.push({ target: "puente", minutesLeft: 90, factor: 0, kind: "material" });
+    assert.notEqual(bottleneckOf(s, "puente"), "FALTA ACERO");
+    assert.notEqual(bottleneckOf(s, "puente"), "ARMADO DETENIDO — MATERIAL");
+  });
+
+  it("cargar acero al frente deja rastro de cantidad", () => {
+    const s = createInitialState();
+    s.survey = 1;
+    s.regime = "siempre";
+    signFirst(s, "puente");
+    s.structures.puente.stage = "armado";
+    s.structures.puente.progress = 0;
+    s.structures.puente.paidStage = null;
+    s.resources.acero = 20;
+    const before = s.resources.acero;
+    stepMinutes(s, 8, { eventBudget: 0 });
+    assert.equal(s.structures.puente.paidStage, "armado");
+    assert.equal(s.resources.acero, before - 14);
+    assert.match(s.lastNotice ?? "", /14 t de acero/);
+    assert.match(s.lastNotice ?? "", /al frente/);
+    assert.notEqual(bottleneckOf(s, "puente"), "FALTA ACERO");
+  });
+
+  it("viaje de hormigón nombra destino si nadie lo carga", () => {
+    const s = createInitialState();
+    const r = orderSupply(s, "hormigon");
+    assert.equal(r.ok, true);
+    assert.match(s.lastNotice ?? "", /al almacén/);
+    assert.match(s.lastNotice ?? "", /Aún no se usa/);
   });
 });
 

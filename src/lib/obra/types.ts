@@ -61,6 +61,8 @@ export type StructureState = {
   opened: boolean;
   hoursWorked: number;
   costAccrued: number;
+  /** Etapa cuyo acero/hormigón ya se cargó al frente. Null = aún no se pagó. */
+  paidStage: StructureStage | null;
 };
 
 export type Prototype = {

@@ -10,7 +10,7 @@
  * Inspección: window.__obra
  */
 import { create } from "zustand";
-import { createInitialState, SITE_MINUTES_PER_REAL_SECOND } from "./catalog";
+import { createInitialState, SAVE_FAIL_LINE, SITE_MINUTES_PER_REAL_SECOND } from "./catalog";
 import { SCRIPT_60 } from "./pliego";
 import { loadState, peekLibreta, readSlotFromSearch, saveState } from "./persist";
 import {
@@ -53,6 +53,7 @@ type ObraStore = {
   pendingCoords: { x: number; y: number } | null;
   surveyFlashAt: number | null;
   toastAt: number | null;
+  toastText: string | null;
   hydrate: (slot: SaveSlot) => void;
   catchUp: () => void;
   advance: (dtSec: number) => void;
@@ -110,10 +111,29 @@ function notify(set: (p: Partial<ObraStore>) => void, game: GameState) {
   });
 }
 
-function commit(set: (p: Partial<ObraStore>) => void, get: () => ObraStore, game: GameState) {
+function persistSlot(
+  set: (p: Partial<ObraStore>) => void,
+  game: GameState,
+  slot: SaveSlot,
+): boolean {
+  const ok = saveState(game, slot);
+  if (!ok) {
+    game.lastNotice = game.lastNotice ? `${game.lastNotice} · ${SAVE_FAIL_LINE}` : SAVE_FAIL_LINE;
+    notify(set, game);
+    set({ toastAt: Date.now(), toastText: SAVE_FAIL_LINE });
+  }
+  return ok;
+}
+
+function commit(set: (p: Partial<ObraStore>) => void, get: () => ObraStore, game: GameState): boolean {
   game.realLastSeen = Date.now();
+  const ok = saveState(game, get().slot);
+  if (!ok) {
+    game.lastNotice = game.lastNotice ? `${game.lastNotice} · ${SAVE_FAIL_LINE}` : SAVE_FAIL_LINE;
+  }
   notify(set, game);
-  saveState(game, get().slot);
+  if (!ok) set({ toastAt: Date.now(), toastText: SAVE_FAIL_LINE });
+  return ok;
 }
 
 function paceScale(game: GameState, noteFocus: boolean): number {
@@ -131,21 +151,31 @@ export const useObra = create<ObraStore>((set, get) => ({
   pendingCoords: null,
   surveyFlashAt: null,
   toastAt: null,
+  toastText: null,
 
   hydrate: (slot) => {
     const prev = get();
     if (prev.hydrated && prev.slot === slot) return;
     if (prev.hydrated && prev.slot !== slot) {
       prev.game.realLastSeen = Date.now();
-      saveState(prev.game, prev.slot);
+      persistSlot(set, prev.game, prev.slot);
     }
     const loaded = loadState(slot);
     const base = loaded ?? createInitialState();
     if (base.clockPace !== "pausa") applyElapsed(base, Date.now());
     else base.realLastSeen = Date.now();
     resetClocks();
-    set({ game: base, hydrated: true, slot, noteFocus: false, pendingCoords: null, surveyFlashAt: null, toastAt: null });
-    saveState(base, slot);
+    set({
+      game: base,
+      hydrated: true,
+      slot,
+      noteFocus: false,
+      pendingCoords: null,
+      surveyFlashAt: null,
+      toastAt: null,
+      toastText: null,
+    });
+    persistSlot(set, base, slot);
   },
 
   catchUp: () => {
@@ -153,12 +183,12 @@ export const useObra = create<ObraStore>((set, get) => ({
     if (!hydrated) return;
     if (noteFocus || game.clockPace === "pausa" || !hasSignedFront(game)) {
       game.realLastSeen = Date.now();
-      saveState(game, slot);
+      persistSlot(set, game, slot);
       return;
     }
     applyElapsed(game, Date.now());
     notify(set, game);
-    saveState(game, slot);
+    persistSlot(set, game, slot);
   },
 
   advance: (dtSec: number) => {
@@ -179,7 +209,7 @@ export const useObra = create<ObraStore>((set, get) => ({
         uiAcc = 0;
         notify(set, game);
         if (flash) set({ surveyFlashAt: Date.now() });
-        if (flash || game.surveying) saveState(game, slot);
+        if (flash || game.surveying) persistSlot(set, game, slot);
       }
       return;
     }
@@ -199,7 +229,7 @@ export const useObra = create<ObraStore>((set, get) => ({
     if (saveAcc >= 6) {
       saveAcc = 0;
       game.realLastSeen = Date.now();
-      saveState(game, slot);
+      persistSlot(set, game, slot);
     }
   },
 
@@ -207,7 +237,7 @@ export const useObra = create<ObraStore>((set, get) => ({
     const { game, slot, hydrated } = get();
     if (!hydrated) return;
     game.realLastSeen = Date.now();
-    saveState(game, slot);
+    persistSlot(set, game, slot);
   },
 
   setPage: (page) => {
@@ -234,7 +264,7 @@ export const useObra = create<ObraStore>((set, get) => ({
     signFirst(game, id);
     const stamped = game.lastNotice === SCRIPT_60.firmado;
     commit(set, get, game);
-    if (stamped) set({ toastAt: Date.now() });
+    if (stamped) set({ toastAt: Date.now(), toastText: SCRIPT_60.firmado });
   },
 
   accept: (contractId) => {
@@ -242,7 +272,7 @@ export const useObra = create<ObraStore>((set, get) => ({
     acceptContract(game, contractId);
     const stamped = game.lastNotice === SCRIPT_60.firmado;
     commit(set, get, game);
-    if (stamped) set({ toastAt: Date.now() });
+    if (stamped) set({ toastAt: Date.now(), toastText: SCRIPT_60.firmado });
   },
 
   openFront: (id) => {
@@ -290,7 +320,9 @@ export const useObra = create<ObraStore>((set, get) => ({
   order: (kind) => {
     const game = get().game;
     orderSupply(game, kind);
+    const notice = game.lastNotice;
     commit(set, get, game);
+    if (notice) set({ toastAt: Date.now(), toastText: notice });
   },
 
   addNote: (kind, line) => {
@@ -325,8 +357,17 @@ export const useObra = create<ObraStore>((set, get) => ({
     base.libreta = notes;
     base.realLastSeen = Date.now();
     resetClocks();
-    set({ game: base, hydrated: true, slot: "visita", noteFocus: false, pendingCoords: null, surveyFlashAt: null, toastAt: null });
-    saveState(base, "visita");
+    set({
+      game: base,
+      hydrated: true,
+      slot: "visita",
+      noteFocus: false,
+      pendingCoords: null,
+      surveyFlashAt: null,
+      toastAt: null,
+      toastText: null,
+    });
+    persistSlot(set, base, "visita");
   },
 
   importVisitaNotes: () => {
@@ -352,8 +393,17 @@ export const useObra = create<ObraStore>((set, get) => ({
     base.libretaPinned = game.libretaPinned;
     base.realLastSeen = Date.now();
     resetClocks();
-    set({ game: base, hydrated: true, slot, noteFocus: false, pendingCoords: null, surveyFlashAt: null, toastAt: null });
-    saveState(base, slot);
+    set({
+      game: base,
+      hydrated: true,
+      slot,
+      noteFocus: false,
+      pendingCoords: null,
+      surveyFlashAt: null,
+      toastAt: null,
+      toastText: null,
+    });
+    persistSlot(set, base, slot);
   },
 
   setClockPace: (pace) => {

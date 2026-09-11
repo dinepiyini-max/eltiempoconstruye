@@ -30,8 +30,8 @@ export function Archivo() {
       {climax ? <Cierre /> : null}
 
       {archive.length === 0 ? (
-        <p className="mt-24 text-center small-caps text-[0.78rem] tracking-[0.32em] text-ink">
-          Aún no hay obra terminada
+        <p className="mt-24 text-center font-serif text-lg leading-snug text-ink">
+          Aquí irán los frentes cerrados. Aún no hay ninguno.
         </p>
       ) : (
         <ol className="mt-8 grid gap-6 sm:grid-cols-2">
