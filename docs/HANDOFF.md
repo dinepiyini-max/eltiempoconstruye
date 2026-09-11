@@ -11,18 +11,23 @@ Canon de este hilo: **no** `src/game`. No se reescribe de cero.
 
 ## Pase 6
 
-Commit: https://github.com/dinepiyini-max/eltiempoconstruye/commit/4d7e45df44e88743f38e92bd0105af3d5a0b3945
+Commit: https://github.com/dinepiyini-max/eltiempoconstruye/commit/84431440fd8fd0d6379b547168a6cc119f9f7fd9
 
-| # | Ítem | Veredicto |
-|---|---|---|
-| 1 | Transferir TOP: de→a explícito. Toast `TOP → [frente]`. No ciclar la fila. | **OK** |
-| 2 | Toasts partidos: `Material recibido · [destino]` distinto de `Aún no se usa: [cuello]`. | **OK** |
-| 3 | Tecla N: dock sin overflow horizontal a 1280×800. | **OK** |
-| 4 | Badge fijo `CRECIDA Q50 · faltan N días` visible junto al título. | **OK** |
-| 5 | Al reanudar: banner 1 línea (día, fase, frentes firmados). | **OK** |
-| 6 | hydrate/persist allowlist. F5 tras firmar no vuelve a Día 01 / partida nueva. | **OK** |
+Código en `main` y en la lámina de este chat. grok.me, al momento de esta prueba, seguía sirviendo BETA FINAL (`/assets/routes-C2SFPbA8.js`). El veredicto **en vivo** es el de grok.me.
 
-Prueba de fuego: firmar PUENTE → F5 → sigue PUENTE, NORMAL, instrucción `dirige`.
+| # | Ítem | Repo / preview | Live grok.me |
+|---|---|---|---|
+| 1 | Transferir TOP: de→a explícito. Toast `TOP → [frente]`. No ciclar la fila. | **OK** | **FALLA** — sigue «cambiar frente», no hay `transferTop` |
+| 2 | Toasts partidos: `Material recibido · [destino]` distinto de `Aún no se usa: [cuello]`. | **OK** | **FALLA** — un solo toast «Llegó un viaje de hormigón…» |
+| 3 | Tecla N: dock sin overflow horizontal a 1280×800. | **OK** | **OK** |
+| 4 | Badge fijo `CRECIDA Q50 · faltan N días` visible junto al título. | **OK** | **FALLA** — el sello sigue rotado, no `stamp-flat` |
+| 5 | Al reanudar: banner 1 línea (día, fase, frentes firmados). | **OK** | **FALLA** — no hay REANUDA |
+| 6 | hydrate/persist allowlist. F5 tras firmar no vuelve a Día 01 / partida nueva. | **OK** | **OK** (persistencia BETA FINAL ya lo cubría) |
+
+Prueba de fuego (repo): firmar PUENTE → F5 → sigue PUENTE, NORMAL, instrucción `dirige`.
+Prueba de fuego (live): **OK** — no vuelve a Día 01.
+
+Cuando la plataforma reconstruya grok.me con este commit, 1–5 deben pasar al mismo nivel que el preview.
 
 ## BETA FINAL
 
@@ -65,13 +70,14 @@ No idle. No frentes nuevos. No endpoint. No PWA. No seed. No pantalla de victori
 
 ## Dónde está cada regla
 
-- Reloj, cuellos, pedidos, personal, crecida, levante, `paidStage`: `src/lib/obra/sim.ts`
-- Pace, foco, cambio de hoja, NUEVA PARTIDA, toast de viaje / save-fail: `src/lib/obra/store.ts`
-- Saves: `src/lib/obra/persist.ts` — claves `obra.jefe` / `obra.visita`. `saveState` → `boolean`.
+- Reloj, cuellos, pedidos, personal, crecida, levante, `paidStage`, `transferTop`, `composeResumeLine`: `src/lib/obra/sim.ts`
+- Pace, foco, cambio de hoja, NUEVA PARTIDA, toast de viaje / save-fail / TOP: `src/lib/obra/store.ts`
+- Saves: `src/lib/obra/persist.ts` — claves `obra.jefe` / `obra.visita`. `snapshotState` allowlist. `saveState` → `boolean`.
 - Mapa sin glifos ajenos: `src/lib/obra/draw.ts`
-- Tests: `src/lib/obra/persist.test.ts` (33)
-- QA Playwright: `artifacts/beta-qa.mjs` (20/20)
+- Tests: `src/lib/obra/persist.test.ts` (35)
+- QA Playwright: `artifacts/pass6-qa.mjs` (8/8 en preview)
 
 ## FALLA conocida
 
 El badge «Created with Grok / Remix» lo inyecta la plataforma. No se oculta.
+grok.me puede ir detrás de `main` hasta el próximo rebuild.
