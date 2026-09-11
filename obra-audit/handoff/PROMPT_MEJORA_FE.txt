@@ -1,0 +1,43 @@
+OBRA — pase de FE (no features)
+Repo: https://github.com/dinepiyini-max/eltiempoconstruye
+Live: https://eltiempoconstruye.grok.me
+Canon vivo: src/lib/obra/* vía AppShell. NO toques el árbol legacy src/game salvo para alinear tests. NO borres README: fusiónalo. Push a main si puedes.
+
+Misión: recuperar la confianza del jefe de obra. La lámina miente y confunde; eso rompe el producto. Arregla solo fe + claridad mínima. Nada más.
+
+PROHIBIDO este pase:
+NO idle · NO UI dulce · NO edificios/frentes nuevos · NO 4º contrato · NO endpoint · NO PWA · NO seed · NO victoria · NO tutorial largo · NO oficios nuevos · NO red/libreta compartida.
+
+PRIORIDAD 1 — Mentiras del motor (obligatorio)
+1) Cuello vs inventario: si hay hormigón (o acero) en stock suficiente para el gesto del frente, NUNCA digas «FALTA HORMIGÓN» / «FALTA ACERO» / «Sin hormigón no se vierte.» El cuello debe nombrar la causa REAL (lluvia, personal, etapa no pagada, umbral de lote, etc.) en una línea honesta.
+2) Consumo opaco: acero/hormigón solo bajan por un gesto visible o por un evento que diga qué se consumió y cuánto. Si no hay gesto, no se descuenta en silencio.
+3) Viaje de material: al llegar un viaje, el toast/evento debe decir dónde quedó (almaceén / frente) y por qué aún no se usa si aplica (ej. «LLUVIA — no se vierte; 20 m³ en almacén»).
+
+PRIORIDAD 2 — Reloj (obligatorio)
+4) Cambiar de hoja (PLANO / OBRA / CONTRATOS / ARCHIVO) NO avanza horas de sitio.
+5) Foco o escritura en LIBRETA = PAUSA automática del reloj; al salir, vuelve al ritmo previo.
+6) Copy coherente: si el reloj está en PAUSA, no digas que «el sitio no para» sin matiz. Una línea basta.
+
+PRIORIDAD 3 — Claridad mínima (obligatorio, una línea cada una)
+7) Glosa visible (no solo hover) para: Q50 («crecida de diseño · 1 en 50 años»), TOP («topógrafo»), cuello («lo que hoy frena el frente»).
+8) ARCHIVO vacío: una línea («Aquí irán los frentes cerrados. Aún no hay ninguno.»).
+9) Noche/fatiga: una línea de acción («Toca el reloj o vuelve a TURNO DE OBRA para salir de jornada forzada.») — sin rediseñar el sistema.
+
+PRIORIDAD 4 — Fricción UI (solo si no rompe lo de arriba)
+10) CONTRATOS: 3 tarjetas completas, botón FIRMAR CONTRATO usable sin clipping.
+11) LIBRETA dock: sin scrollbar horizontal; pestaña no recortada.
+
+Estética: lámina de ingeniería viva (marfil, grafito, cian, óxido). No candy.
+
+Al terminar: commit en main + actualizar docs/HANDOFF.md con OK/FALLA de esta lista + URL del commit.
+
+Checklist (responde OK o FALLA, sin inventar):
+1 cuello no miente con stock
+2 consumo con causa visible
+3 viaje aclara destino
+4 hojas no gastan horas
+5 libreta = PAUSA
+6 glosa Q50 + TOP + cuello
+7 ARCHIVO vacío con sentido
+8 CONTRATOS sin clipping grave
+9 código en GitHub
