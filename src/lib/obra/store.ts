@@ -173,6 +173,7 @@ export const useObra = create<ObraStore>((set, get) => ({
     if (base.clockPace !== "pausa") applyElapsed(base, Date.now());
     else base.realLastSeen = Date.now();
     resetClocks();
+    const resumeLine = loaded ? composeResumeLine(base) : null;
     set({
       game: base,
       hydrated: true,
@@ -183,9 +184,10 @@ export const useObra = create<ObraStore>((set, get) => ({
       toastAt: null,
       toastText: null,
       toastUnused: null,
-      resumeLine: loaded ? composeResumeLine(base) : null,
+      resumeLine,
     });
     persistSlot(set, base, slot);
+    if (resumeLine && get().resumeLine !== resumeLine) set({ resumeLine });
   },
 
   catchUp: () => {

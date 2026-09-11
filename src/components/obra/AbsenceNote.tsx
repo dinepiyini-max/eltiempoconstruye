@@ -17,7 +17,7 @@ export function AbsenceNote() {
   );
 }
 
-/** Una línea al reanudar. Día, fase, frentes firmados. Visible, sin hover. */
+/** Una línea al reanudar. Día, fase, frentes firmados. Visible, sin hover, sin recorte. */
 export function ResumeBanner() {
   const line = useObra((s) => s.resumeLine);
   const dismiss = useObra((s) => s.dismissResume);
@@ -25,11 +25,13 @@ export function ResumeBanner() {
   return (
     <button
       type="button"
+      data-obra-resume
+      role="status"
       onClick={dismiss}
-      className="relative z-20 w-full border-b border-ink/30 bg-paper-2 px-3 py-2.5 text-left sm:px-5"
+      className="relative z-30 mb-2 w-full border border-ink/40 bg-cyan-wash px-3 py-2 text-left"
       aria-label={line}
     >
-      <span className="block font-serif text-base leading-snug text-ink">{line}</span>
+      <span className="block whitespace-normal break-words font-serif text-base leading-snug text-ink">{line}</span>
     </button>
   );
 }

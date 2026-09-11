@@ -5,6 +5,7 @@ import { floodLine, hasSignedFront } from "@/lib/obra/sim";
 import { useObra } from "@/lib/obra/store";
 import type { ClockPace, PageId } from "@/lib/obra/types";
 import { NuevaPartida } from "./NuevaPartida";
+import { ResumeBanner } from "./AbsenceNote";
 
 const TABS: { id: PageId; label: string }[] = [
   { id: "plano", label: "PLANO" },
@@ -49,6 +50,7 @@ export function TitleBlock() {
 
   return (
     <header className="relative z-20 border-b border-rule/80 bg-paper/90 px-3 py-2 sm:px-5">
+      <ResumeBanner />
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3">

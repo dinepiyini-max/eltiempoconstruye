@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useObra } from "@/lib/obra/store";
 import type { SaveSlot } from "@/lib/obra/types";
-import { AbsenceNote, ResumeBanner } from "./AbsenceNote";
+import { AbsenceNote } from "./AbsenceNote";
 import { Archivo } from "./Archivo";
 import { Contratos } from "./Contratos";
 import { Libreta } from "./Libreta";
@@ -34,7 +34,6 @@ export function AppShell({ slot }: { slot: SaveSlot }) {
       {hydrated ? (
         <>
           <TitleBlock />
-          <ResumeBanner />
           <AbsenceNote />
           <Toast />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden md:flex-row">
