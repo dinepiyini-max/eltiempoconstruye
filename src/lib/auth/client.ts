@@ -83,6 +83,25 @@ function inLivePreview(): boolean {
 type PopupMessage = { source: "grok-auth-popup"; token: string | null; error?: string };
 
 /**
+ * Only allow same-origin relative paths for post-auth navigation.
+ * Blocks absolute URLs, protocol-relative (`//evil`), and schemes.
+ */
+export function safeSameOriginPath(raw: string | undefined | null, fallback = "/"): string {
+  const value = (raw ?? "").trim() || fallback;
+  if (!value.startsWith("/")) return fallback;
+  if (value.startsWith("//")) return fallback;
+  if (value.includes("\\")) return fallback;
+  // Reject embedded scheme-looking segments after first slash? Keep simple: path only.
+  try {
+    const u = new URL(value, "https://example.invalid");
+    if (u.origin !== "https://example.invalid") return fallback;
+    return `${u.pathname}${u.search}${u.hash}` || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+/**
  * Start sign-in with one upstream provider (`providerId` from `GROK_PROVIDERS`),
  * federating through the Grok auth broker.
  *
@@ -100,8 +119,8 @@ export async function signIn(
   providerId: string,
   opts: { callbackURL?: string; errorCallbackURL?: string } = {},
 ): Promise<void> {
-  const callbackURL = opts.callbackURL ?? "/";
-  const errorCallbackURL = opts.errorCallbackURL ?? "/";
+  const callbackURL = safeSameOriginPath(opts.callbackURL, "/");
+  const errorCallbackURL = safeSameOriginPath(opts.errorCallbackURL, "/");
 
   // Open the popup SYNCHRONOUSLY on the user gesture — before any await
   // (including signOut). Awaiting first drops user-gesture privilege in some
@@ -136,8 +155,9 @@ export async function signIn(
     if (typeof window !== "undefined") {
       const dest = new URL(callbackURL, window.location.origin);
       const here = window.location;
+      // callbackURL is already forced to a same-origin path
       if (dest.origin !== here.origin || dest.pathname !== here.pathname || dest.search !== here.search) {
-        window.location.href = callbackURL;
+        window.location.assign(dest.pathname + dest.search + dest.hash);
       }
     }
     return;
@@ -219,6 +239,7 @@ function waitForPopupToken(popup: Window): Promise<string | null> {
  * preview the local clear is sufficient, so it always resolves.
  */
 export async function signOut(redirectTo = "/"): Promise<void> {
+  const safeRedirect = safeSameOriginPath(redirectTo, "/");
   await runSignOut({
     livePreview: inLivePreview(),
     hasBearer: Boolean(getBearerToken()),
@@ -230,7 +251,7 @@ export async function signOut(redirectTo = "/"): Promise<void> {
     },
     clearToken: () => setBearerToken(null),
     redirect: () => {
-      window.location.href = redirectTo;
+      window.location.assign(safeRedirect);
     },
   });
 }
