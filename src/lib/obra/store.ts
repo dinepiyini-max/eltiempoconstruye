@@ -187,7 +187,7 @@ export const useObra = create<ObraStore>((set, get) => ({
       resumeLine,
     });
     persistSlot(set, base, slot);
-    if (resumeLine && get().resumeLine !== resumeLine) set({ resumeLine });
+    if (loaded) set({ resumeLine: composeResumeLine(base) });
   },
 
   catchUp: () => {

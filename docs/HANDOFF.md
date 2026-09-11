@@ -11,16 +11,18 @@ Canon de este hilo: **no** `src/game`. No se reescribe de cero.
 
 ## Banner REANUDA (este pase)
 
-Tras F5 / reabrir partida guardada: una línea visible en el cajetín, sin hover, sin recorte.
+Tras F5 / reabrir partida guardada: una línea visible **encima del título OBRA**, sin hover, sin recorte. No es un botón. Solo se cierra con **CERRAR**. Un click en el cajetín no la quita. No se va sola.
 
 Formato: `REANUDA · Día 01 · Fase II · firmados: CAMINO, PUENTE`
 
-Cableado: `hydrate` y `catchUp` ponen `resumeLine`. `ResumeBanner` vive **dentro de TitleBlock** (primera fila del cajetín), no debajo del header. `data-obra-resume`. Fondo `cyan-wash`.
+Cableado: `hydrate` con save **siempre** setea `resumeLine` (`composeResumeLine`). `catchUp` también. `ResumeBanner` dentro de TitleBlock, primera fila.
+
 
 
 | # | Ítem | Preview | Live grok.me |
 |---|---|---|---|
-| 1 | F5 tras firmar → banner visible | **OK** — `REANUDA · Día 01 · Fase II · firmados: PUENTE` (cajetín, sin recorte) | **FALLA** — hay una tira vieja (`DÍA 01 · 07:01 · FASE II · INFRAESTRUCTURA · firmados PUENTE`). No es el formato pedido. Este commit lo corrige; grok.me aún no lo sirve. |
+| 1 | F5 tras firmar → banner visible ≥ 8 s, solo CERRAR lo quita | **OK** — `REANUDA · Día 01 · Fase II · firmados: PUENTE` + CERRAR | **FALLA** — grok.me aún sirve el banner-botón de 189166c (sin CERRAR). Este commit lo corrige. |
+
 
 
 ## Pase 6
