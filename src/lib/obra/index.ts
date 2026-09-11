@@ -25,6 +25,6 @@
  */
 export { useObra } from "./store";
 export { SLOT_KEYS, SITE_MINUTES_PER_REAL_SECOND, OFFLINE_CAP_MS } from "./catalog";
-export { FLOOD, MANDANTE, ENCARGO_LINE, TESIS } from "./pliego";
-export { floodLine } from "./sim";
+export { FLOOD, MANDANTE, ENCARGO_LINE, TESIS, PLIEGO_V1_LINE } from "./pliego";
+export { floodLine, composeCierre, crecidaNoNegocia } from "./sim";
 export { readSlotFromSearch, saveState, loadState } from "./persist";

@@ -10,6 +10,7 @@ import { Plano } from "./Plano";
 import { SimHost } from "./SimHost";
 import { TitleBlock } from "./TitleBlock";
 import { Toast } from "./Toast";
+import { CierrePanel } from "./CierreLamina";
 
 export function AppShell({ slot }: { slot: SaveSlot }) {
   const page = useObra((s) => s.game.page);
@@ -36,6 +37,7 @@ export function AppShell({ slot }: { slot: SaveSlot }) {
           <TitleBlock />
           <AbsenceNote />
           <Toast />
+          <CierrePanel />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden md:flex-row">
             <main className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
               <div

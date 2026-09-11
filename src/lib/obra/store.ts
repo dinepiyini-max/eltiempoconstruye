@@ -58,6 +58,8 @@ type ObraStore = {
   toastText: string | null;
   toastUnused: string | null;
   resumeLine: string | null;
+  cierreDismissed: boolean;
+  crecidaAvisoDismissed: boolean;
   hydrate: (slot: SaveSlot) => void;
   catchUp: () => void;
   advance: (dtSec: number) => void;
@@ -87,6 +89,8 @@ type ObraStore = {
   setNoteFocus: (on: boolean) => void;
   setPendingCoords: (pt: { x: number; y: number } | null) => void;
   dismissResume: () => void;
+  dismissCierre: () => void;
+  dismissCrecidaAviso: () => void;
 };
 
 let uiAcc = 0;
@@ -160,6 +164,8 @@ export const useObra = create<ObraStore>((set, get) => ({
   toastText: null,
   toastUnused: null,
   resumeLine: null,
+  cierreDismissed: false,
+  crecidaAvisoDismissed: false,
 
   hydrate: (slot) => {
     const prev = get();
@@ -185,6 +191,8 @@ export const useObra = create<ObraStore>((set, get) => ({
       toastText: null,
       toastUnused: null,
       resumeLine,
+      cierreDismissed: false,
+      crecidaAvisoDismissed: false,
     });
     persistSlot(set, base, slot);
     if (loaded) set({ resumeLine: composeResumeLine(base) });
@@ -398,6 +406,8 @@ export const useObra = create<ObraStore>((set, get) => ({
       toastText: null,
       toastUnused: null,
       resumeLine: null,
+      cierreDismissed: false,
+      crecidaAvisoDismissed: false,
     });
     persistSlot(set, base, "visita");
   },
@@ -436,6 +446,8 @@ export const useObra = create<ObraStore>((set, get) => ({
       toastText: null,
       toastUnused: null,
       resumeLine: null,
+      cierreDismissed: false,
+      crecidaAvisoDismissed: false,
     });
     persistSlot(set, base, slot);
   },
@@ -487,6 +499,14 @@ export const useObra = create<ObraStore>((set, get) => ({
 
   dismissResume: () => {
     set({ resumeLine: null });
+  },
+
+  dismissCierre: () => {
+    set({ cierreDismissed: true });
+  },
+
+  dismissCrecidaAviso: () => {
+    set({ crecidaAvisoDismissed: true });
   },
 }));
 

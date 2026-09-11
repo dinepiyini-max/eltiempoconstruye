@@ -30,7 +30,7 @@ import {
   stageIndex,
 } from "./catalog";
 import { clockParts, pad2 } from "./format";
-import { FLOOD, SCRIPT_60 } from "./pliego";
+import { FLOOD, SCRIPT_60, CIERRE_SALVO, CIERRE_INCUMPLIDO } from "./pliego";
 import type {
   Contract,
   Crew,
@@ -126,6 +126,50 @@ export function floodLine(s: GameState): string {
   const n = Math.max(0, daysUntilFlood(s));
   if (n === 0) return `${FLOOD.label} · hoy`;
   return `${FLOOD.label} · faltan ${n} ${n === 1 ? "día" : "días"}`;
+}
+
+/** Etapa posterior a excavación: armado, encofrado, estructura, conexión. */
+export function pastExcavation(stage: StructureStage): boolean {
+  return stageIndex(stage) > stageIndex("excavacion");
+}
+
+export function frontsPastExcavation(s: GameState): StructureId[] {
+  return V1_CONTRACT_IDS.filter((id) => pastExcavation(s.structures[id].stage));
+}
+
+/** Día 8+: menos de dos frentes del pliego pasaron excavación. */
+export function crecidaNoNegocia(s: GameState): boolean {
+  if (s.floodStatus !== "pendiente") return false;
+  if (clockParts(s.siteMinutes).day < 8) return false;
+  return frontsPastExcavation(s).length < 2;
+}
+
+export type CierreSheet = {
+  stamp: "OBRA A SALVO" | "PLAZO INCUMPLIDO";
+  day: number;
+  dayLabel: string;
+  prestigio: number;
+  fronts: string;
+  phrase: string;
+};
+
+export function composeCierre(s: GameState): CierreSheet | null {
+  if (s.floodStatus !== "a-salvo" && s.floodStatus !== "incumplido") return null;
+  const clock = clockParts(s.siteMinutes);
+  const fronts = V1_CONTRACT_IDS.map((id) => {
+    const st = s.structures[id];
+    if (!st.opened) return `${STRUCTURE_NAME_UP[id]} —`;
+    return `${STRUCTURE_NAME_UP[id]} ${STAGE_LABEL[st.stage]}`;
+  }).join(" · ");
+  const saved = s.floodStatus === "a-salvo";
+  return {
+    stamp: saved ? "OBRA A SALVO" : "PLAZO INCUMPLIDO",
+    day: clock.day,
+    dayLabel: clock.label,
+    prestigio: s.prestigio,
+    fronts,
+    phrase: saved ? CIERRE_SALVO : CIERRE_INCUMPLIDO,
+  };
 }
 
 export function contractClock(

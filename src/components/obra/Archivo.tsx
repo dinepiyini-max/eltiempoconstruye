@@ -1,7 +1,7 @@
 import { VALLEY_NAME } from "@/lib/obra/catalog";
 import { clockParts, formatInt } from "@/lib/obra/format";
 import { MANDANTE, TESIS } from "@/lib/obra/pliego";
-import { floodLine, v1Complete } from "@/lib/obra/sim";
+import { floodLine, v1Complete, composeCierre } from "@/lib/obra/sim";
 import { useObra } from "@/lib/obra/store";
 import { NuevaPartida } from "./NuevaPartida";
 
@@ -64,28 +64,28 @@ export function Archivo() {
 
 function Cierre() {
   const game = useObra((s) => s.game);
+  const sheet = composeCierre(game);
   const clock = clockParts(game.siteMinutes);
-  const saved = game.floodStatus === "a-salvo";
-  const failed = game.floodStatus === "incumplido";
   const flood = floodLine(game);
 
   return (
     <article className="mt-8 border border-ink/30 bg-paper p-5">
       <p className="small-caps text-[0.6rem] text-cyan">Lámina de cierre · {VALLEY_NAME}</p>
       <h3 className="mt-2 font-serif text-2xl text-ink">
-        {saved ? "El pliego se cumplió." : failed ? "La crecida llegó antes." : "El valle aún espera."}
+        {sheet ? sheet.stamp : "El valle aún espera."}
       </h3>
-      <p className="mt-2 font-serif italic text-ink-soft">{TESIS}</p>
+      <p className="mt-2 font-serif italic text-ink-soft">{sheet ? sheet.phrase : TESIS}</p>
       <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-        <Item k="Día de sitio" v={clock.label} />
-        <Item k="Prestigio" v={formatInt(game.prestigio)} />
+        <Item k="Día de sitio" v={sheet?.dayLabel ?? clock.label} />
+        <Item k="Prestigio" v={formatInt(sheet?.prestigio ?? game.prestigio)} />
         <Item k="Hormigón vertido" v={`${formatInt(game.totals.hormigon)} m³`} />
         <Item k="Crecida" v={flood} />
       </dl>
-      {saved ? (
-        <p className="stamp mt-5 inline-block px-3 py-1 text-[0.62rem]">OBRA A SALVO</p>
-      ) : failed ? (
-        <p className="stamp mt-5 inline-block px-3 py-1 text-[0.62rem]">PLAZO INCUMPLIDO</p>
+      {sheet ? (
+        <p className="mt-4 font-serif text-sm leading-snug text-ink">Frentes · {sheet.fronts}</p>
+      ) : null}
+      {sheet ? (
+        <p className="stamp mt-5 inline-block px-3 py-1 text-[0.62rem]">{sheet.stamp}</p>
       ) : null}
       <div className="mt-6">
         <NuevaPartida />

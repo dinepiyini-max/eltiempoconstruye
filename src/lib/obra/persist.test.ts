@@ -11,6 +11,8 @@ import {
   bottleGloss,
   composeAbsenceLine,
   composeResumeLine,
+  composeCierre,
+  crecidaNoNegocia,
   contractClock,
   daysUntilFlood,
   floodLine,
@@ -466,6 +468,78 @@ describe("claves de save", () => {
     assert.notEqual(SLOT_KEYS.jefe.live, SLOT_KEYS.visita.live);
     assert.equal(SLOT_KEYS.jefe.live, "obra.jefe");
     assert.equal(SLOT_KEYS.visita.live, "obra.visita");
+  });
+});
+
+describe("salida de beta · pliego v1", () => {
+  it("día 1 no avisa la crecida", () => {
+    const s = createInitialState();
+    s.survey = 1;
+    signFirst(s, "camino");
+    assert.equal(crecidaNoNegocia(s), false);
+    assert.equal(composeCierre(s), null);
+  });
+
+  it("día 8 con menos de dos frentes pasada excavación avisa", () => {
+    const s = createInitialState();
+    s.survey = 1;
+    signFirst(s, "camino");
+    s.structures.camino.stage = "excavacion";
+    s.siteMinutes = 7 * 24 * 60;
+    assert.equal(clockParts(s.siteMinutes).day, 8);
+    assert.equal(crecidaNoNegocia(s), true);
+    s.structures.puente.opened = true;
+    s.structures.puente.stage = "armado";
+    assert.equal(crecidaNoNegocia(s), true);
+    s.structures.muro.opened = true;
+    s.structures.muro.stage = "armado";
+    assert.equal(crecidaNoNegocia(s), false);
+  });
+
+  it("dos frentes en armado el día 8 no avisan", () => {
+    const s = createInitialState();
+    s.survey = 1;
+    s.siteMinutes = 7 * 24 * 60;
+    s.structures.camino.opened = true;
+    s.structures.camino.stage = "armado";
+    s.structures.puente.opened = true;
+    s.structures.puente.stage = "conexion";
+    assert.equal(crecidaNoNegocia(s), false);
+  });
+
+  it("lámina a-salvo nombra sello, día, prestigio y frentes", () => {
+    const s = createInitialState();
+    s.survey = 1;
+    s.prestigio = 33;
+    for (const id of ["camino", "puente", "muro"] as const) {
+      s.structures[id].opened = true;
+      s.structures[id].stage = "conexion";
+      s.structures[id].progress = 1;
+    }
+    s.floodStatus = "a-salvo";
+    const sheet = composeCierre(s);
+    assert.ok(sheet);
+    assert.equal(sheet.stamp, "OBRA A SALVO");
+    assert.equal(sheet.day, 1);
+    assert.equal(sheet.prestigio, 33);
+    assert.match(sheet.fronts, /CAMINO CONECTADO/);
+    assert.match(sheet.fronts, /PUENTE CONECTADO/);
+    assert.match(sheet.fronts, /MURO CONECTADO/);
+    assert.match(sheet.phrase, /tres frentes/);
+  });
+
+  it("lámina incumplido y el aviso del día 8 no conviven", () => {
+    const s = createInitialState();
+    s.survey = 1;
+    s.siteMinutes = 11 * 24 * 60;
+    s.floodStatus = "incumplido";
+    s.structures.camino.opened = true;
+    s.structures.camino.stage = "excavacion";
+    const sheet = composeCierre(s);
+    assert.ok(sheet);
+    assert.equal(sheet.stamp, "PLAZO INCUMPLIDO");
+    assert.match(sheet.phrase, /crecida llegó/);
+    assert.equal(crecidaNoNegocia(s), false);
   });
 });
 

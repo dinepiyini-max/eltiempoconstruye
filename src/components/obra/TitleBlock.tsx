@@ -1,11 +1,12 @@
 import { CLOCK_HOLD_LINE, GLOSS, PACE_CAPTION, PHASE_LABEL, REGIME_CAPTION, RESOURCE_HINT, SUPPLY } from "@/lib/obra/catalog";
 import { clockParts, formatInt } from "@/lib/obra/format";
-import { CARGO, MANDANTE, PROYECTO, TESIS } from "@/lib/obra/pliego";
+import { CARGO, MANDANTE, PLIEGO_V1_LINE, PROYECTO, TESIS } from "@/lib/obra/pliego";
 import { floodLine, hasSignedFront } from "@/lib/obra/sim";
 import { useObra } from "@/lib/obra/store";
 import type { ClockPace, PageId } from "@/lib/obra/types";
 import { NuevaPartida } from "./NuevaPartida";
 import { ResumeBanner } from "./AbsenceNote";
+import { CrecidaAviso } from "./CierreLamina";
 
 const TABS: { id: PageId; label: string }[] = [
   { id: "plano", label: "PLANO" },
@@ -51,6 +52,7 @@ export function TitleBlock() {
   return (
     <header className="relative z-20 border-b border-rule/80 bg-paper/90 px-3 py-2 sm:px-5">
       <ResumeBanner />
+      <CrecidaAviso />
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3">
@@ -66,6 +68,9 @@ export function TitleBlock() {
           </div>
           <p className="small-caps mt-0.5 text-[0.55rem] tracking-[0.12em] text-cyan">
             {CARGO} · {PROYECTO} · {MANDANTE}
+          </p>
+          <p data-obra-pliego-v1 className="mt-0.5 max-w-xl font-serif text-sm leading-snug text-ink">
+            {PLIEGO_V1_LINE}
           </p>
           <p className="mt-0.5 max-w-xl font-serif text-sm italic text-ink-soft sm:text-[0.95rem]">{TESIS}</p>
           <p className="mt-1 small-caps text-[0.5rem] tracking-[0.12em] text-ink-soft">{GLOSS.sitio}</p>

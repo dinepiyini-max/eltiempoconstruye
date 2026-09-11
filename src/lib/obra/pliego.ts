@@ -25,6 +25,16 @@ export const ENCARGO_LINE =
 
 export const TESIS = "El tiempo construye. Tú decides qué merece ser construido.";
 
+/** Alcance cerrado de esta versión. Una línea, visible en el cajetín. */
+export const PLIEGO_V1_LINE =
+  "Pliego v1 · Camino, Puente y Muro. Ampliar la obra = versión posterior.";
+
+export const CRECIDA_NO_NEGOCIA = "La crecida no negocia.";
+
+export const CIERRE_SALVO =
+  "Los tres frentes del pliego están conectados. La Q50 no se lleva el valle.";
+export const CIERRE_INCUMPLIDO = "La crecida llegó antes que el pliego.";
+
 export const PLIEGO_LINES: readonly string[] = [
   `Mandante · ${MANDANTE}`,
   `Cargo · ${CARGO} del ${PROYECTO}`,

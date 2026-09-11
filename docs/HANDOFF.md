@@ -9,7 +9,21 @@ Libreta: localStorage del navegador. Sin red, sin POST, sin endpoint.
 
 Canon de este hilo: **no** `src/game`. No se reescribe de cero.
 
-## Este pase
+## FASE 1 — salida de beta
+
+1. Cajetín, 1 línea: `Pliego v1 · Camino, Puente y Muro. Ampliar la obra = versión posterior.`
+2. Lámina de cierre (panel, no fireworks): `OBRA A SALVO` o `PLAZO INCUMPLIDO` + día, prestigio, frentes + 1 frase + NUEVA PARTIDA. SEGUIR deja ver el valle.
+3. Día 8, si <2 frentes pasada excavación: banner `La crecida no negocia.`
+
+No se tocó: persist, REANUDA, badge Q50, `__obra`, idle, PWA, 4º contrato.
+
+| # | Ítem | Preview | Live grok.me |
+|---|---|---|---|
+| 1 | Alcance v1 visible en el cajetín | **OK** | **FALLA** — grok.me aún sirve `routes-WJyuvwO1.js` (FASE 0). No tiene `Pliego v1`. |
+| 2 | Lámina al ganar o al vencer el plazo; NUEVA PARTIDA desde la lámina | **OK** | **FALLA** — no hay `data-obra-cierre` |
+| 3 | Aviso día 8 si <2 frentes pasada excavación | **OK** | **FALLA** — no hay `La crecida no negocia.` |
+
+## Este pase (FASE 0)
 
 1. `window.__obra` solo si `import.meta.env.DEV` (import dinámico de `inspect-obra.ts`). En prod no existe. Solo `get` / `slot` / `keys`. Sin mutators.
 2. Banner REANUDA (JEFE): `hydrate` con save siempre setea `resumeLine`. Encima de OBRA. Texto `REANUDA · Día NN · Fase X · firmados: …`. Visible ≥ 8 s. Solo **CERRAR / ×**. Click en el cajetín no lo tira. Hard reload lo vuelve a mostrar.
@@ -87,15 +101,15 @@ Commit: https://github.com/dinepiyini-max/eltiempoconstruye/commit/6e8a9d57df606
 
 ## No se toca
 
-No idle. No frentes nuevos. No endpoint. No PWA. No seed. No pantalla de victoria. No 4º contrato. No oficios nuevos. No tutorial modal.
+No idle. No frentes nuevos. No endpoint. No PWA. No seed. No 4º contrato. No oficios nuevos. No tutorial modal.
 
 ## Dónde está cada regla
 
-- Reloj, cuellos, pedidos, personal, crecida, levante, `paidStage`, `transferTop`, `composeResumeLine`: `src/lib/obra/sim.ts`
+- Reloj, cuellos, pedidos, personal, crecida, levante, `paidStage`, `transferTop`, `composeResumeLine`, `composeCierre`, `crecidaNoNegocia`: `src/lib/obra/sim.ts`
 - Pace, foco, cambio de hoja, NUEVA PARTIDA, toast de viaje / save-fail / TOP: `src/lib/obra/store.ts`
 - Saves: `src/lib/obra/persist.ts` — claves `obra.jefe` / `obra.visita`. `snapshotState` allowlist. `saveState` → `boolean`.
 - Mapa sin glifos ajenos: `src/lib/obra/draw.ts`
-- Tests: `src/lib/obra/persist.test.ts` (36)
+- Tests: `src/lib/obra/persist.test.ts` (41)
 - QA Playwright: `artifacts/pass6-qa.mjs` (8/8 en preview)
 
 ## FALLA conocida

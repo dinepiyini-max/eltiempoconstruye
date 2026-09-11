@@ -89,8 +89,12 @@ y la lámina lleva sello TARDÍO.
 
 `floodStatus`: `pendiente` → `a-salvo` | `incumplido`.
 
-No es game-over. Si incumples, el ritmo baja (`× 0.62`) y ARCHIVO sella
-PLAZO INCUMPLIDO. NUEVA PARTIDA reinicia el valle y **conserva la libreta**.
+No es game-over. Si incumples, el ritmo baja (`× 0.62`) y sale la lámina de
+cierre (panel: sello, día, prestigio, frentes, una frase, NUEVA PARTIDA).
+SEGUIR deja ver el valle. NUEVA PARTIDA reinicia y **conserva la libreta**.
+
+Día 8: si menos de dos frentes pasaron excavación, banner «La crecida no negocia.»
+Alcance v1 (cajetín): Camino, Puente y Muro. Ampliar la obra = versión posterior.
 
 ## Dos cajas
 
