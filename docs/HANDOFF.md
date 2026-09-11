@@ -11,7 +11,7 @@ Canon de este hilo: **no** `src/game`. No se reescribe de cero.
 
 ## BETA FINAL
 
-Commit: https://github.com/dinepiyini-max/eltiempoconstruye/commit/c792e5d30247b087ccd685202dfb1dcb3450c3f6
+Commit: https://github.com/dinepiyini-max/eltiempoconstruye/commit/6e8a9d57df60627c7995e49994f5eb7c5cb300ff
 
 | # | Ítem | Veredicto |
 |---|---|---|
