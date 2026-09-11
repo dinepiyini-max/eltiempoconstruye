@@ -28,6 +28,11 @@ function isRemintPreviewPair(guestHost: string, parentHost: string): boolean {
   return parent === rest || parent === `grok.${rest}`;
 }
 
+/**
+ * Resolve a trusted parent embedder origin for the preview host bridge.
+ * Prefer ancestorOrigins over document.referrer. Never treat "guest is sandbox"
+ * as enough to trust an arbitrary parent — require Grok allowlist or remint pair.
+ */
 export function resolveParentEmbedderOrigin(
   parentIsSelf: boolean,
   referrer: string,
@@ -35,19 +40,16 @@ export function resolveParentEmbedderOrigin(
   guestHostname: string = "",
 ): string | null {
   if (parentIsSelf) return null;
-  for (const candidate of [referrer, ancestorOrigin ?? ""].filter(Boolean)) {
+  // Prefer ancestorOrigins (direct embedder) over referrer (easier to spoof).
+  const candidates = [ancestorOrigin ?? "", referrer].filter(Boolean);
+  for (const candidate of candidates) {
     try {
       const url = new URL(
         candidate.includes("://") ? candidate : `https://${candidate}`,
       );
       if (url.protocol !== "https:" && url.protocol !== "http:") continue;
       if (isGrokEmbedderOrigin(url.origin)) return url.origin;
-      if (
-        isSandboxPreviewGuestHost(guestHostname) ||
-        isRemintPreviewPair(guestHostname, url.hostname)
-      ) {
-        return url.origin;
-      }
+      if (isRemintPreviewPair(guestHostname, url.hostname)) return url.origin;
     } catch {
       // try next candidate
     }
