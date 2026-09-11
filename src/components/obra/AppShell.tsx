@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useObra } from "@/lib/obra/store";
 import type { SaveSlot } from "@/lib/obra/types";
-import { AbsenceNote } from "./AbsenceNote";
+import { AbsenceNote, ResumeBanner } from "./AbsenceNote";
 import { Archivo } from "./Archivo";
 import { Contratos } from "./Contratos";
 import { Libreta } from "./Libreta";
@@ -29,14 +29,15 @@ export function AppShell({ slot }: { slot: SaveSlot }) {
   }, [toggleLibreta]);
 
   return (
-    <div className="flex min-h-dvh flex-col bg-paper text-ink">
+    <div className="flex min-h-dvh flex-col overflow-x-hidden bg-paper text-ink">
       <SimHost slot={slot} />
       {hydrated ? (
         <>
           <TitleBlock />
+          <ResumeBanner />
           <AbsenceNote />
           <Toast />
-          <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden md:flex-row">
             <main className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
               <div
                 className={`absolute inset-0 ${page === "plano" ? "" : "invisible pointer-events-none"}`}

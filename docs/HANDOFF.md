@@ -9,9 +9,25 @@ Libreta: localStorage del navegador. Sin red, sin POST, sin endpoint.
 
 Canon de este hilo: **no** `src/game`. No se reescribe de cero.
 
+## Pase 6
+
+Commit: https://github.com/dinepiyini-max/eltiempoconstruye/commit/4d7e45df44e88743f38e92bd0105af3d5a0b3945
+
+| # | Ítem | Veredicto |
+|---|---|---|
+| 1 | Transferir TOP: de→a explícito. Toast `TOP → [frente]`. No ciclar la fila. | **OK** |
+| 2 | Toasts partidos: `Material recibido · [destino]` distinto de `Aún no se usa: [cuello]`. | **OK** |
+| 3 | Tecla N: dock sin overflow horizontal a 1280×800. | **OK** |
+| 4 | Badge fijo `CRECIDA Q50 · faltan N días` visible junto al título. | **OK** |
+| 5 | Al reanudar: banner 1 línea (día, fase, frentes firmados). | **OK** |
+| 6 | hydrate/persist allowlist. F5 tras firmar no vuelve a Día 01 / partida nueva. | **OK** |
+
+Prueba de fuego: firmar PUENTE → F5 → sigue PUENTE, NORMAL, instrucción `dirige`.
+
 ## BETA FINAL
 
 Commit: https://github.com/dinepiyini-max/eltiempoconstruye/commit/6e8a9d57df60627c7995e49994f5eb7c5cb300ff
+
 
 | # | Ítem | Veredicto |
 |---|---|---|

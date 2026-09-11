@@ -101,8 +101,8 @@ export function Libreta() {
 
   return (
     <aside
-      className={`flex shrink-0 flex-col border-ink/20 bg-paper max-md:border-t md:border-l ${
-        open ? "max-md:h-[min(42vh,22rem)] md:w-[300px]" : "max-md:h-10 md:w-8"
+      className={`flex min-w-0 shrink-0 flex-col overflow-x-hidden border-ink/20 bg-paper max-md:border-t md:border-l ${
+        open ? "max-md:h-[min(42vh,22rem)] md:w-72 md:max-w-[min(18rem,32vw)]" : "max-md:h-10 md:w-8"
       }`}
       aria-label="Libreta de campo"
     >

@@ -26,6 +26,9 @@ Emplazamiento de estudio · no corresponde a un predio real.
 - Sin personal en disponibles: el botón queda disabled, con la razón en una línea. TOP vacío: «SIN TOP EN RESERVA».
 - La ficha del plano se reabre siempre (clic en la pieza o en CAMINO / PUENTE / MURO).
 - F5 / cerrar 30 s: misma fase, mismo día, mismos frentes. Si localStorage falla, toast.
+- Al reanudar: una línea con día, fase y frentes firmados.
+- TOP se traspasa de → a (no se cicla la fila). Toast `TOP → [frente]`.
+- Pedido de material: toast `Material recibido · [destino]`; si no se carga, otro `Aún no se usa: [cuello]`.
 
 ## Libreta
 

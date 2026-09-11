@@ -15,9 +15,11 @@ import {
   BOTTLE_GLOSS,
   FRONT_LABEL,
   OFICIO_KEY,
+  PHASE_LABEL,
   PROTO_DEF,
   STRUCTURE_DEF,
   STRUCTURE_NAME,
+  STRUCTURE_NAME_UP,
   STAGE_LABEL,
   SITE_MINUTES_PER_REAL_SECOND,
   OFFLINE_CAP_MS,
@@ -1134,6 +1136,48 @@ export function toggleRegime(s: GameState): void {
   }
 }
 
+export function composeResumeLine(s: GameState): string {
+  const clock = clockParts(s.siteMinutes);
+  const signed = V1_CONTRACT_IDS.filter((id) => s.structures[id].opened).map((id) => STRUCTURE_NAME_UP[id]);
+  const fronts = signed.length ? `firmados ${signed.join(" · ")}` : "ningún frente firmado";
+  return `${clock.label} · ${PHASE_LABEL[s.phase]} · ${fronts}`;
+}
+
+export function transferTop(s: GameState, from: FrontId, to: FrontId): { ok: boolean; reason?: string } {
+  if (from === to) {
+    s.lastNotice = "El origen y el destino son el mismo.";
+    return { ok: false, reason: s.lastNotice };
+  }
+  if (to !== "reserva" && to !== "survey" && to !== "ensayo" && !s.structures[to]?.opened) {
+    s.lastNotice = "Ese frente aún no está autorizado.";
+    return { ok: false, reason: s.lastNotice };
+  }
+  const src = s.crews.find((c) => c.front === from && c.topografos > 0);
+  if (!src) {
+    s.lastNotice = `SIN TOP EN ${FRONT_LABEL[from]}`;
+    return { ok: false, reason: s.lastNotice };
+  }
+  let dest = s.crews.find((c) => c.front === to && c.id !== src.id);
+  if (!dest) {
+    dest = s.crews.find((c) => c.front === "reserva" && c.id !== src.id && crewHeadcount(c) === 0);
+    if (dest) dest.front = to;
+  }
+  if (!dest) dest = s.crews.find((c) => c.front === to);
+  if (!dest && crewHeadcount(src) === src.topografos) {
+    src.front = to;
+    s.lastNotice = `TOP → ${FRONT_LABEL[to]}`;
+    return { ok: true };
+  }
+  if (!dest) {
+    s.lastNotice = "No hay cuadrilla de destino.";
+    return { ok: false, reason: s.lastNotice };
+  }
+  src.topografos -= 1;
+  dest.topografos += 1;
+  s.lastNotice = `TOP → ${FRONT_LABEL[to]}`;
+  return { ok: true };
+}
+
 export function cycleCrewFront(s: GameState, crewId: string): void {
   const crew = s.crews.find((c) => c.id === crewId);
   if (!crew) return;
@@ -1145,7 +1189,10 @@ export function cycleCrewFront(s: GameState, crewId: string): void {
   assignCrew(s, crewId, next);
 }
 
-export function orderSupply(s: GameState, kind: "hormigon" | "acero"): { ok: boolean; reason?: string } {
+export function orderSupply(
+  s: GameState,
+  kind: "hormigon" | "acero",
+): { ok: boolean; reason?: string; received?: string; unused?: string | null } {
   const spec = SUPPLY[kind];
   if (s.resources.dinero < spec.cost) {
     s.lastNotice = `Fondos insuficientes para el ${spec.noun} (${spec.cost}).`;
@@ -1166,7 +1213,6 @@ export function orderSupply(s: GameState, kind: "hormigon" | "acero"): { ok: boo
     });
   }
 
-  const arrived = `Llegó un ${spec.noun}: ${spec.qty} ${spec.unit}`;
   const consumer = STRUCTURE_IDS.find((id) => {
     const st = s.structures[id];
     if (!st.opened || st.stage === "conexion") return false;
@@ -1174,6 +1220,9 @@ export function orderSupply(s: GameState, kind: "hormigon" | "acero"): { ok: boo
     const qty = kind === "acero" ? need.acero : need.hormigon;
     return qty > 0 && st.paidStage !== st.stage;
   });
+
+  let destLabel = "almacén";
+  let unused: string | null = null;
   if (consumer) {
     const st = s.structures[consumer];
     const need = materialsFor(consumer, st.stage);
@@ -1182,16 +1231,17 @@ export function orderSupply(s: GameState, kind: "hormigon" | "acero"): { ok: boo
     const unit = spec.unit;
     const bottle = bottleneckOf(s, consumer);
     if (have < qty) {
-      s.lastNotice = `${arrived} al almacén. Aún no se usa en ${FRONT_LABEL[consumer]}: faltan ${Math.ceil(qty - have)} ${unit}.`;
-    } else if (
-      bottle &&
-      bottle !== "FALTA ACERO" &&
-      bottle !== "FALTA HORMIGÓN" &&
-      bottle !== "ARMADO DETENIDO — MATERIAL"
-    ) {
-      s.lastNotice = `${arrived} al frente ${FRONT_LABEL[consumer]}. Aún no se usa: ${bottle}.`;
+      unused = `Aún no se usa: faltan ${Math.ceil(qty - have)} ${unit}`;
     } else {
-      s.lastNotice = `${arrived} al frente ${FRONT_LABEL[consumer]}. Se carga a ${STAGE_LABEL[st.stage].toLowerCase()}.`;
+      destLabel = `frente ${FRONT_LABEL[consumer]}`;
+      if (
+        bottle &&
+        bottle !== "FALTA ACERO" &&
+        bottle !== "FALTA HORMIGÓN" &&
+        bottle !== "ARMADO DETENIDO — MATERIAL"
+      ) {
+        unused = `Aún no se usa: ${bottle}`;
+      }
     }
   } else {
     const watch =
@@ -1202,13 +1252,11 @@ export function orderSupply(s: GameState, kind: "hormigon" | "acero"): { ok: boo
             return b === "FALTA ACERO" || b === "FALTA HORMIGÓN" || b === "ARMADO DETENIDO — MATERIAL";
           });
     const bottle = watch ? bottleneckOf(s, watch) : null;
-    if (bottle) {
-      s.lastNotice = `${arrived} al almacén. Aún no se usa: ${bottle}.`;
-    } else {
-      s.lastNotice = `${arrived} al almacén. Aún no se usa: ningún frente carga este material hoy.`;
-    }
+    unused = bottle ? `Aún no se usa: ${bottle}` : "Aún no se usa: ningún frente carga este material hoy";
   }
-  return { ok: true };
+  const received = `Material recibido · ${destLabel}`;
+  s.lastNotice = received;
+  return { ok: true, received, unused };
 }
 
 export function startPrototype(s: GameState, name: string, kind: ProtoKind): { ok: boolean; reason?: string } {

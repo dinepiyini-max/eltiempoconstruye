@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { FRONT_LABEL, GLOSS, OFICIO_KEY, RESOURCE_HINT, STAGE_LABEL, NEXT_HITO, STRUCTURE_NAME_UP, VALLEY_NAME } from "@/lib/obra/catalog";
 import { clockParts } from "@/lib/obra/format";
 import {
@@ -15,7 +16,7 @@ import {
   staffGate,
 } from "@/lib/obra/sim";
 import { useObra } from "@/lib/obra/store";
-import type { Oficio, StructureId } from "@/lib/obra/types";
+import type { FrontId, Oficio, StructureId } from "@/lib/obra/types";
 import { STRUCTURE_IDS } from "@/lib/obra/types";
 import { Pedidos } from "./Pedidos";
 
@@ -55,6 +56,7 @@ export function Obra() {
         DISPONIBLES · {pool.obreros} OBR · {pool.capataces} CAP · {pool.ingenieros} ING · {pool.topografos} TOP
       </p>
       <p className="mt-1 font-serif text-xs text-ink-soft">{GLOSS.top}</p>
+      <TopTransfer />
 
       {opened.length === 0 && !ensayoOn ? (
         <p className="mt-10 small-caps text-[0.72rem] tracking-[0.28em] text-ink">Ningún frente.</p>
@@ -95,6 +97,70 @@ export function Obra() {
       />
       <CrewBlock title="Disponibles" crews={disponibles} empty="Sin personal en reserva." />
     </section>
+  );
+}
+
+function TopTransfer() {
+  const game = useObra((s) => s.game);
+  const move = useObra((s) => s.transferTop);
+  const opened = STRUCTURE_IDS.filter((id) => game.structures[id].opened);
+  const dests: FrontId[] = ["reserva", ...opened];
+  const sources = dests.filter((id) => peopleOn(game, id).topografos > 0);
+  const [from, setFrom] = useState<FrontId | "">("");
+  const [to, setTo] = useState<FrontId | "">("");
+  const origin = from && sources.includes(from) ? from : (sources[0] ?? "");
+  const target = to && dests.includes(to) && to !== origin ? to : dests.find((d) => d !== origin) ?? "";
+  const can = Boolean(origin && target && origin !== target);
+
+  if (opened.length === 0) return null;
+
+  return (
+    <div className="mt-3 flex flex-wrap items-end gap-2 border border-ink/20 bg-paper px-3 py-2">
+      <p className="small-caps w-full text-[0.52rem] text-ink">Traspasar TOP · de → a</p>
+      <label className="flex flex-col">
+        <span className="small-caps text-[0.48rem] text-ink-soft">De</span>
+        <select
+          className="min-h-11 border border-ink/30 bg-paper px-2 text-sm text-ink"
+          value={origin}
+          onChange={(e) => setFrom(e.target.value as FrontId)}
+        >
+          {sources.length === 0 ? <option value="">Sin TOP</option> : null}
+          {sources.map((id) => (
+            <option key={id} value={id}>
+              {FRONT_LABEL[id]} · {peopleOn(game, id).topografos}
+            </option>
+          ))}
+        </select>
+      </label>
+      <span className="small-caps pb-3 text-[0.52rem] text-ink-soft">→</span>
+      <label className="flex flex-col">
+        <span className="small-caps text-[0.48rem] text-ink-soft">A</span>
+        <select
+          className="min-h-11 border border-ink/30 bg-paper px-2 text-sm text-ink"
+          value={target}
+          onChange={(e) => setTo(e.target.value as FrontId)}
+        >
+          {dests
+            .filter((d) => d !== origin)
+            .map((id) => (
+              <option key={id} value={id}>
+                {FRONT_LABEL[id]}
+              </option>
+            ))}
+        </select>
+      </label>
+      <button
+        type="button"
+        disabled={!can}
+        onClick={() => {
+          if (!origin || !target) return;
+          move(origin, target);
+        }}
+        className="stamp stamp-flat min-h-11 px-3 text-[0.55rem] disabled:border-rule disabled:text-faint"
+      >
+        TRASPASAR
+      </button>
+    </div>
   );
 }
 
@@ -207,24 +273,42 @@ function CrewBlock({
 function CrewRow({ id }: { id: string }) {
   const game = useObra((s) => s.game);
   const shift = useObra((s) => s.shift);
-  const cycleFront = useObra((s) => s.cycleFront);
+  const assign = useObra((s) => s.assign);
   const crew = game.crews.find((c) => c.id === id);
   if (!crew) return null;
   const heads = crewHeadcount(crew);
   const pool = reservaPool(game);
   const noTop = pool.topografos < 1;
+  const dests: FrontId[] = [
+    "reserva",
+    ...STRUCTURE_IDS.filter((sid) => game.structures[sid].opened),
+  ];
 
   return (
     <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-rule/70 py-2">
       <div className="min-w-0">
         <p className="font-sans tracking-wide text-ink">{crew.name}</p>
-        <button
-          type="button"
-          onClick={() => cycleFront(crew.id)}
-          className="small-caps min-h-11 text-[0.58rem] text-cyan"
-        >
-          {frontPosting(crew.front)} · {FRONT_LABEL[crew.front]} · {heads} · cambiar frente
-        </button>
+        <p className="small-caps text-[0.58rem] text-cyan">
+          {frontPosting(crew.front)} · {FRONT_LABEL[crew.front]} · {heads}
+        </p>
+        <div className="mt-1 flex flex-wrap gap-1">
+          {dests.map((d) => {
+            const on = crew.front === d;
+            return (
+              <button
+                key={d}
+                type="button"
+                disabled={on}
+                onClick={() => assign(crew.id, d)}
+                className={`small-caps min-h-11 border px-2 text-[0.48rem] ${
+                  on ? "border-stamp text-stamp" : "border-ink/30 text-ink"
+                } disabled:opacity-100`}
+              >
+                {FRONT_LABEL[d]}
+              </button>
+            );
+          })}
+        </div>
       </div>
       <div className="flex flex-wrap items-center gap-1">
         {OFICIOS.map((o) => {

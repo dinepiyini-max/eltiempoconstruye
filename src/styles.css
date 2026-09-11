@@ -108,6 +108,10 @@
     user-select: none;
   }
 
+  .stamp-flat {
+    transform: none;
+  }
+
   .stamp-turno {
     border-color: var(--color-cyan);
     color: var(--color-cyan);

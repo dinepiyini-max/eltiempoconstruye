@@ -51,8 +51,15 @@ export function TitleBlock() {
     <header className="relative z-20 border-b border-rule/80 bg-paper/90 px-3 py-2 sm:px-5">
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2">
         <div className="min-w-0">
-          <div className="flex flex-wrap items-baseline gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <h1 className="font-serif text-3xl font-semibold tracking-[0.18em] text-ink sm:text-4xl">OBRA</h1>
+            <p
+              className={`stamp stamp-flat shrink-0 px-2.5 py-1.5 text-[0.62rem] tracking-[0.14em] ${
+                floodStatus === "incumplido" ? "" : floodStatus === "a-salvo" ? "stamp-turno" : ""
+              }`}
+            >
+              {flood}
+            </p>
             {visita ? <span className="stamp px-1.5 py-0.5 text-[0.5rem]">VISITA</span> : null}
           </div>
           <p className="small-caps mt-0.5 text-[0.55rem] tracking-[0.12em] text-cyan">
@@ -93,13 +100,6 @@ export function TitleBlock() {
         <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1 text-ink">
           <span className="small-caps text-[0.62rem] text-cyan">{PHASE_LABEL[phase]}</span>
           <span className="font-sans text-sm tabular-nums tracking-wide">{clock.label}</span>
-          <span
-            className={`small-caps text-[0.58rem] ${
-              floodStatus === "incumplido" ? "text-stamp" : floodStatus === "a-salvo" ? "text-cyan" : "text-ink-soft"
-            }`}
-          >
-            {flood}
-          </span>
         </div>
         <div className="flex flex-wrap items-end gap-x-4 gap-y-2 text-[0.7rem]">
           <Metric k="Dinero" v={formatInt(r.dinero)} />

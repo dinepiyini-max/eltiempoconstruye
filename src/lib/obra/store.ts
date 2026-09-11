@@ -18,6 +18,7 @@ import {
   applyElapsed,
   assignCrew,
   assignFromDisponibles,
+  composeResumeLine,
   cycleCrewFront,
   hasSignedFront,
   openStructure,
@@ -28,6 +29,7 @@ import {
   stepMinutes,
   tickSurveyReal,
   toggleRegime,
+  transferTop as moveTop,
 } from "./sim";
 import type {
   ClockPace,
@@ -54,6 +56,8 @@ type ObraStore = {
   surveyFlashAt: number | null;
   toastAt: number | null;
   toastText: string | null;
+  toastUnused: string | null;
+  resumeLine: string | null;
   hydrate: (slot: SaveSlot) => void;
   catchUp: () => void;
   advance: (dtSec: number) => void;
@@ -67,6 +71,7 @@ type ObraStore = {
   assign: (crewId: string, front: FrontId) => void;
   cycleFront: (crewId: string) => void;
   shift: (crewId: string, oficio: Oficio, dir: 1 | -1) => void;
+  transferTop: (from: FrontId, to: FrontId) => void;
   staffFront: (id: StructureId) => void;
   toggleRegime: () => void;
   dismissAbsence: () => void;
@@ -81,6 +86,7 @@ type ObraStore = {
   pinLibreta: () => void;
   setNoteFocus: (on: boolean) => void;
   setPendingCoords: (pt: { x: number; y: number } | null) => void;
+  dismissResume: () => void;
 };
 
 let uiAcc = 0;
@@ -152,6 +158,8 @@ export const useObra = create<ObraStore>((set, get) => ({
   surveyFlashAt: null,
   toastAt: null,
   toastText: null,
+  toastUnused: null,
+  resumeLine: null,
 
   hydrate: (slot) => {
     const prev = get();
@@ -174,6 +182,8 @@ export const useObra = create<ObraStore>((set, get) => ({
       surveyFlashAt: null,
       toastAt: null,
       toastText: null,
+      toastUnused: null,
+      resumeLine: loaded ? composeResumeLine(base) : null,
     });
     persistSlot(set, base, slot);
   },
@@ -189,6 +199,7 @@ export const useObra = create<ObraStore>((set, get) => ({
     applyElapsed(game, Date.now());
     notify(set, game);
     persistSlot(set, game, slot);
+    set({ resumeLine: composeResumeLine(game) });
   },
 
   advance: (dtSec: number) => {
@@ -264,7 +275,7 @@ export const useObra = create<ObraStore>((set, get) => ({
     signFirst(game, id);
     const stamped = game.lastNotice === SCRIPT_60.firmado;
     commit(set, get, game);
-    if (stamped) set({ toastAt: Date.now(), toastText: SCRIPT_60.firmado });
+    if (stamped) set({ toastAt: Date.now(), toastText: SCRIPT_60.firmado, toastUnused: null });
   },
 
   accept: (contractId) => {
@@ -272,7 +283,7 @@ export const useObra = create<ObraStore>((set, get) => ({
     acceptContract(game, contractId);
     const stamped = game.lastNotice === SCRIPT_60.firmado;
     commit(set, get, game);
-    if (stamped) set({ toastAt: Date.now(), toastText: SCRIPT_60.firmado });
+    if (stamped) set({ toastAt: Date.now(), toastText: SCRIPT_60.firmado, toastUnused: null });
   },
 
   openFront: (id) => {
@@ -299,6 +310,16 @@ export const useObra = create<ObraStore>((set, get) => ({
     commit(set, get, game);
   },
 
+  transferTop: (from, to) => {
+    const game = get().game;
+    moveTop(game, from, to);
+    const notice = game.lastNotice;
+    commit(set, get, game);
+    if (notice && notice.startsWith("TOP →")) {
+      set({ toastAt: Date.now(), toastText: notice, toastUnused: null });
+    }
+  },
+
   staffFront: (id) => {
     const game = get().game;
     assignFromDisponibles(game, id);
@@ -319,10 +340,17 @@ export const useObra = create<ObraStore>((set, get) => ({
 
   order: (kind) => {
     const game = get().game;
-    orderSupply(game, kind);
-    const notice = game.lastNotice;
+    const result = orderSupply(game, kind);
     commit(set, get, game);
-    if (notice) set({ toastAt: Date.now(), toastText: notice });
+    if (result.ok && result.received) {
+      set({
+        toastAt: Date.now(),
+        toastText: result.received,
+        toastUnused: result.unused ?? null,
+      });
+    } else if (game.lastNotice) {
+      set({ toastAt: Date.now(), toastText: game.lastNotice, toastUnused: null });
+    }
   },
 
   addNote: (kind, line) => {
@@ -366,6 +394,8 @@ export const useObra = create<ObraStore>((set, get) => ({
       surveyFlashAt: null,
       toastAt: null,
       toastText: null,
+      toastUnused: null,
+      resumeLine: null,
     });
     persistSlot(set, base, "visita");
   },
@@ -402,6 +432,8 @@ export const useObra = create<ObraStore>((set, get) => ({
       surveyFlashAt: null,
       toastAt: null,
       toastText: null,
+      toastUnused: null,
+      resumeLine: null,
     });
     persistSlot(set, base, slot);
   },
@@ -449,6 +481,10 @@ export const useObra = create<ObraStore>((set, get) => ({
     game.libretaOpen = true;
     set({ pendingCoords: pt });
     notify(set, game);
+  },
+
+  dismissResume: () => {
+    set({ resumeLine: null });
   },
 }));
 

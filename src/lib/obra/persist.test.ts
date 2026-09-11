@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createInitialState, APPLY_ELAPSED_SKIP_MS, OFFLINE_CAP_MS, SLOT_KEYS } from "./catalog.ts";
 import { clockParts } from "./format.ts";
 import { FLOOD } from "./pliego.ts";
-import { hydrateParsed, migrateLibreta } from "./persist.ts";
+import { hydrateParsed, migrateLibreta, snapshotState } from "./persist.ts";
 import {
   acceptContract,
   applyElapsed,
@@ -23,6 +23,7 @@ import {
   startSurvey,
   stepMinutes,
   tickSurveyReal,
+  transferTop,
   v1Complete,
 } from "./sim.ts";
 
@@ -47,6 +48,29 @@ describe("persistencia", () => {
     assert.ok(parsed.contracts[0]?.purpose);
     assert.equal(parsed.clockPace, "normal");
     assert.equal(parsed.page, "plano");
+    assert.equal((parsed as { junk?: unknown }).junk, undefined);
+  });
+
+  it("F5 tras firmar no vuelve a Día 01 ni pierde el frente", () => {
+    const s = createInitialState();
+    s.survey = 1;
+    s.instruction = "define";
+    signFirst(s, "puente");
+    s.siteMinutes = 7 * 60 + 48;
+    s.phase = 2;
+    const snap = snapshotState(s);
+    const round = hydrateParsed(
+      JSON.parse(JSON.stringify({ ...snap, junk: 1, evil: { nested: true }, lastNotice: "x" })),
+    );
+    assert.ok(round);
+    assert.equal(round.structures.puente.opened, true);
+    assert.equal(round.siteMinutes, s.siteMinutes);
+    assert.equal(clockParts(round.siteMinutes).day, clockParts(s.siteMinutes).day);
+    assert.equal(round.phase, 2);
+    assert.equal(round.instruction, "dirige");
+    assert.equal(round.clockPace, "normal");
+    assert.equal((round as { junk?: unknown }).junk, undefined);
+    assert.equal(round.lastNotice, null);
   });
 
   it("una etapa ya avanzada se considera pagada", () => {
@@ -290,17 +314,18 @@ describe("inventario y personal", () => {
     s.slowdowns.push({ target: "puente", minutesLeft: 90, factor: 0, kind: "material" });
     assert.equal(bottleneckOf(s, "puente"), "FALTA ACERO");
 
-    orderSupply(s, "acero");
+    const first = orderSupply(s, "acero");
     assert.equal(s.resources.acero, 8);
     assert.equal(bottleneckOf(s, "puente"), "FALTA ACERO");
-    assert.match(s.lastNotice ?? "", /al almacén/);
-    assert.match(s.lastNotice ?? "", /faltan/);
+    assert.match(s.lastNotice ?? "", /Material recibido · almacén/);
+    assert.match(first.unused ?? "", /faltan/);
 
-    orderSupply(s, "acero");
+    const second = orderSupply(s, "acero");
     assert.equal(s.resources.acero, 16);
     assert.notEqual(bottleneckOf(s, "puente"), "FALTA ACERO");
     assert.notEqual(bottleneckOf(s, "puente"), "ARMADO DETENIDO — MATERIAL");
-    assert.match(s.lastNotice ?? "", /al frente PUENTE/);
+    assert.match(s.lastNotice ?? "", /Material recibido · frente PUENTE/);
+    assert.equal(second.received, s.lastNotice);
   });
 
   it("un slowdown de material no miente si el acero ya alcanza", () => {
@@ -410,8 +435,19 @@ describe("inventario y personal", () => {
     const s = createInitialState();
     const r = orderSupply(s, "hormigon");
     assert.equal(r.ok, true);
-    assert.match(s.lastNotice ?? "", /al almacén/);
-    assert.match(s.lastNotice ?? "", /Aún no se usa/);
+    assert.match(s.lastNotice ?? "", /Material recibido · almacén/);
+    assert.match(r.unused ?? "", /Aún no se usa/);
+  });
+
+  it("transferTop mueve un TOP de→a y avisa el destino", () => {
+    const s = createInitialState();
+    s.survey = 1;
+    signFirst(s, "camino");
+    signFirst(s, "puente");
+    const r = transferTop(s, "camino", "puente");
+    assert.equal(r.ok, true);
+    assert.equal(s.lastNotice, "TOP → PUENTE");
+    assert.ok(s.crews.some((c) => c.front === "puente" && c.topografos >= 1));
   });
 });
 
