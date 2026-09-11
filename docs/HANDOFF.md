@@ -11,17 +11,26 @@ Canon de este hilo: **no** `src/game`. No se reescribe de cero.
 
 ## FASE 1 — salida de beta
 
+Commit: https://github.com/dinepiyini-max/eltiempoconstruye/commit/5293a0fb8788b383a4414268ab0d3272b3d193b5
+Live bundle al verificar: `routes-DL6-SBK1.js`
+
 1. Cajetín, 1 línea: `Pliego v1 · Camino, Puente y Muro. Ampliar la obra = versión posterior.`
 2. Lámina de cierre (panel, no fireworks): `OBRA A SALVO` o `PLAZO INCUMPLIDO` + día, prestigio, frentes + 1 frase + NUEVA PARTIDA. SEGUIR deja ver el valle.
 3. Día 8, si <2 frentes pasada excavación: banner `La crecida no negocia.`
 
 No se tocó: persist, REANUDA, badge Q50, `__obra`, idle, PWA, 4º contrato.
 
+Prueba en live (grok.me), 11 sep 2026:
+- Alcance visible sin hover.
+- Reloj cruzando el día 12 con el pliego abierto → lámina PLAZO INCUMPLIDO + NUEVA PARTIDA.
+- Reloj cruzando el día 8 con 1 frente en excavación → banner «La crecida no negocia.»
+- NUEVA PARTIDA desde la lámina cierra el panel y reinicia el valle.
+
 | # | Ítem | Preview | Live grok.me |
 |---|---|---|---|
-| 1 | Alcance v1 visible en el cajetín | **OK** | **FALLA** — grok.me aún sirve `routes-WJyuvwO1.js` (FASE 0). No tiene `Pliego v1`. |
-| 2 | Lámina al ganar o al vencer el plazo; NUEVA PARTIDA desde la lámina | **OK** | **FALLA** — no hay `data-obra-cierre` |
-| 3 | Aviso día 8 si <2 frentes pasada excavación | **OK** | **FALLA** — no hay `La crecida no negocia.` |
+| 1 | Alcance v1 visible en el cajetín | **OK** | **OK** |
+| 2 | Lámina al ganar o al vencer el plazo; NUEVA PARTIDA desde la lámina | **OK** | **OK** |
+| 3 | Aviso día 8 si <2 frentes pasada excavación | **OK** | **OK** |
 
 ## Este pase (FASE 0)
 
