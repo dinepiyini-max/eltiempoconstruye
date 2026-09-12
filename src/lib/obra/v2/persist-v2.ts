@@ -32,6 +32,22 @@ export type V2View = {
   ppm: number;
 };
 
+export type V2Placa = {
+  id: string;
+  closedAt: string;
+  largoMuroM: number;
+  losaM2: number;
+  estimado: number;
+  recuento: {
+    muros: number;
+    vanos: number;
+    columnas: number;
+    zapatas: number;
+    vigas: number;
+    losas: number;
+  };
+};
+
 export type V2Document = {
   product: typeof V2_PRODUCT;
   version: typeof V2_DOC_VERSION;
@@ -41,12 +57,14 @@ export type V2Document = {
   footings: Zapata[];
   beams: Viga[];
   slabs: Losa[];
+  archive: V2Placa[];
   nextSeq: number;
   nextHuecoSeq: number;
   nextColSeq: number;
   nextZapSeq: number;
   nextVigaSeq: number;
   nextLosaSeq: number;
+  nextArchiveSeq: number;
   view: V2View | null;
 };
 
@@ -81,12 +99,14 @@ export function emptyV2(): V2Document {
     footings: [],
     beams: [],
     slabs: [],
+    archive: [],
     nextSeq: 1,
     nextHuecoSeq: 1,
     nextColSeq: 1,
     nextZapSeq: 1,
     nextVigaSeq: 1,
     nextLosaSeq: 1,
+    nextArchiveSeq: 1,
     view: null,
   };
 }
@@ -101,13 +121,26 @@ export function snapshotV2(doc: V2Document): V2Document {
     footings: doc.footings.map((z) => createZapata(z.c, z.id, z.lado, z.columnId)),
     beams: doc.beams.map((v) => createViga(v.a, v.b, v.id, v.ancho)),
     slabs: doc.slabs.map((l) => createLosa(l.poly, l.id)),
+    archive: doc.archive.map(clonePlaca),
     nextSeq: doc.nextSeq,
     nextHuecoSeq: doc.nextHuecoSeq,
     nextColSeq: doc.nextColSeq,
     nextZapSeq: doc.nextZapSeq,
     nextVigaSeq: doc.nextVigaSeq,
     nextLosaSeq: doc.nextLosaSeq,
+    nextArchiveSeq: doc.nextArchiveSeq,
     view: doc.view ? { panX: doc.view.panX, panY: doc.view.panY, ppm: doc.view.ppm } : null,
+  };
+}
+
+function clonePlaca(p: V2Placa): V2Placa {
+  return {
+    id: p.id,
+    closedAt: p.closedAt,
+    largoMuroM: p.largoMuroM,
+    losaM2: p.losaM2,
+    estimado: p.estimado,
+    recuento: { ...p.recuento },
   };
 }
 
@@ -228,6 +261,36 @@ function migrateView(raw: unknown): V2View | null {
   return { panX: num(raw.panX, 0), panY: num(raw.panY, 0), ppm };
 }
 
+function migrateArchive(raw: unknown): V2Placa[] {
+  if (!Array.isArray(raw)) return [];
+  const out: V2Placa[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    if (!isObject(item)) continue;
+    const id = typeof item.id === "string" && item.id ? item.id : `A-${String(out.length + 1).padStart(3, "0")}`;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const rec = isObject(item.recuento) ? item.recuento : {};
+    const closedAt = typeof item.closedAt === "string" && item.closedAt ? item.closedAt : "";
+    out.push({
+      id,
+      closedAt,
+      largoMuroM: Math.max(0, num(item.largoMuroM, 0)),
+      losaM2: Math.max(0, num(item.losaM2, 0)),
+      estimado: Math.max(0, num(item.estimado, 0)),
+      recuento: {
+        muros: Math.max(0, num(rec.muros, 0)),
+        vanos: Math.max(0, num(rec.vanos, 0)),
+        columnas: Math.max(0, num(rec.columnas, 0)),
+        zapatas: Math.max(0, num(rec.zapatas, 0)),
+        vigas: Math.max(0, num(rec.vigas, 0)),
+        losas: Math.max(0, num(rec.losas, 0)),
+      },
+    });
+  }
+  return out;
+}
+
 function seqFromIds(ids: readonly string[], prefix: RegExp, fallback: number): number {
   let next = Math.max(1, Math.floor(fallback));
   for (const id of ids) {
@@ -251,6 +314,7 @@ export function hydrateV2(parsed: unknown): V2Document | null {
   );
   const beams = migrateBeams(parsed.beams);
   const slabs = migrateSlabs(parsed.slabs);
+  const archive = migrateArchive(parsed.archive);
   return {
     product: V2_PRODUCT,
     version: V2_DOC_VERSION,
@@ -289,6 +353,12 @@ export function hydrateV2(parsed: unknown): V2Document | null {
       slabs.map((l) => l.id),
       /^L-/,
       num(parsed.nextLosaSeq, 1),
+    ),
+    archive,
+    nextArchiveSeq: seqFromIds(
+      archive.map((p) => p.id),
+      /^A-/,
+      num(parsed.nextArchiveSeq, 1),
     ),
     view: migrateView(parsed.view),
   };
@@ -335,3 +405,28 @@ export function loadV2(storage: V2Storage | null = browserStorage()): V2Document
 }
 
 export const V2_FORBIDDEN_KEYS = ["obra.jefe", "obra.visita", "obra.jefe.bak", "obra.visita.bak"] as const;
+
+/** Borra el plano V2. Conserva el archivo. Nunca escribe claves Yuna. */
+export function resetDrawing(doc: V2Document): V2Document {
+  const empty = emptyV2();
+  return {
+    ...empty,
+    archive: doc.archive.map(clonePlaca),
+    nextArchiveSeq: Math.max(empty.nextArchiveSeq, doc.nextArchiveSeq),
+  };
+}
+
+export function drawingIsEmpty(doc: Pick<V2Document, "walls" | "openings" | "columns" | "footings" | "beams" | "slabs">): boolean {
+  return (
+    doc.walls.length === 0 &&
+    doc.openings.length === 0 &&
+    doc.columns.length === 0 &&
+    doc.footings.length === 0 &&
+    doc.beams.length === 0 &&
+    doc.slabs.length === 0
+  );
+}
+
+export function placaId(seq: number): string {
+  return `A-${String(seq).padStart(3, "0")}`;
+}

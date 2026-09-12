@@ -131,6 +131,8 @@ export type TakeoffScene = {
   hormigonM3: number;
   aceroT: number;
   losaM2: number;
+  morteroM3: number;
+  albanilM2: number;
 };
 
 export type SceneQty = {
@@ -183,6 +185,8 @@ export function takeoffScene(s: SceneQty): TakeoffScene {
     hormigonM3,
     aceroT,
     losaM2,
+    morteroM3: Math.max(0, wallsNet.areaNetaM2 * V2_MURO.morteroM3PerM2),
+    albanilM2: Math.max(0, wallsNet.areaNetaM2),
   };
 }
 

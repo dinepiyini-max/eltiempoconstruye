@@ -101,8 +101,8 @@ export {
 } from "./quantity.ts";
 export type { Takeoff, TakeoffMuro, TakeoffScene } from "./quantity.ts";
 
-export { presupuesto } from "./cost.ts";
-export type { CostItem, Presupuesto } from "./cost.ts";
+export { hojaPresupuesto, presupuesto } from "./cost.ts";
+export type { CostItem, HojaLinea, HojaPresupuesto, Presupuesto } from "./cost.ts";
 
 export { canRedo, canUndo, histInit, histPush, histRedo, histUndo } from "./history.ts";
 
@@ -111,10 +111,13 @@ export {
   V2_FORBIDDEN_KEYS,
   V2_LIVE_KEY,
   V2_PRODUCT,
+  drawingIsEmpty,
   emptyV2,
   hydrateV2,
   loadV2,
+  placaId,
+  resetDrawing,
   saveV2,
   snapshotV2,
 } from "./persist-v2.ts";
-export type { V2Document, V2View } from "./persist-v2.ts";
+export type { V2Document, V2Placa, V2View } from "./persist-v2.ts";

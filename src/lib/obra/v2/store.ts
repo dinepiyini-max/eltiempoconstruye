@@ -33,11 +33,22 @@ import {
   type Zapata,
 } from "./geometry.ts";
 import { canRedo, canUndo, histInit, histPush, histRedo, histUndo, type Hist } from "./history.ts";
-import { loadV2, saveV2, type V2View } from "./persist-v2.ts";
+import { hojaPresupuesto } from "./cost.ts";
+import {
+  drawingIsEmpty,
+  loadV2,
+  placaId,
+  resetDrawing,
+  saveV2,
+  type V2Placa,
+  type V2View,
+} from "./persist-v2.ts";
+import { takeoffScene } from "./quantity.ts";
 import { V2_COLUMNA, V2_LOSA_PLANTA, V2_MURO, V2_VIGA, V2_ZAPATA } from "./tables.ts";
 import { fitView, zoomAt } from "./draw-v2.ts";
 
 export type V2Tool = "muro" | "seleccionar" | "puerta" | "ventana" | "columna" | "zapata" | "viga" | "losa";
+export type V2Page = "lamina" | "presupuesto";
 
 export type V2Draft = { a: Pt; b: Pt; kind: SnapKind };
 
@@ -68,10 +79,14 @@ type NuevaStore = {
   nextZapSeq: number;
   nextVigaSeq: number;
   nextLosaSeq: number;
+  nextArchiveSeq: number;
+  archive: V2Placa[];
+  page: V2Page;
   hist: Hist<NuevaScene>;
   hydrated: boolean;
   hydrate: () => void;
   flush: () => void;
+  setPage: (page: V2Page) => void;
   setTool: (tool: V2Tool) => void;
   setView: (view: V2View) => void;
   fit: (w: number, h: number) => void;
@@ -90,6 +105,8 @@ type NuevaStore = {
   undo: () => void;
   redo: () => void;
   snap: (raw: Pt, origin: Pt | null) => { point: Pt; kind: SnapKind };
+  nuevaLamina: () => void;
+  cerrarLamina: () => string | null;
   canUndo: boolean;
   canRedo: boolean;
 };
@@ -129,6 +146,8 @@ function persistNow(get: () => NuevaStore) {
     nextZapSeq: s.nextZapSeq,
     nextVigaSeq: s.nextVigaSeq,
     nextLosaSeq: s.nextLosaSeq,
+    nextArchiveSeq: s.nextArchiveSeq,
+    archive: s.archive,
     view: s.view,
   });
 }
@@ -179,6 +198,9 @@ export const useNueva = create<NuevaStore>((set, get) => ({
   nextZapSeq: 1,
   nextVigaSeq: 1,
   nextLosaSeq: 1,
+  nextArchiveSeq: 1,
+  archive: [],
+  page: "lamina",
   hist: histInit<NuevaScene>(emptyScene()),
   hydrated: false,
   canUndo: false,
@@ -201,6 +223,8 @@ export const useNueva = create<NuevaStore>((set, get) => ({
       nextZapSeq: doc.nextZapSeq,
       nextVigaSeq: doc.nextVigaSeq,
       nextLosaSeq: doc.nextLosaSeq,
+      nextArchiveSeq: doc.nextArchiveSeq,
+      archive: doc.archive,
       view: doc.view ?? get().view,
       selectedId: null,
       draft: null,
@@ -213,6 +237,8 @@ export const useNueva = create<NuevaStore>((set, get) => ({
   },
 
   flush: () => persistNow(get),
+
+  setPage: (page) => set({ page }),
 
   setTool: (tool) => set({ tool, draft: null, polyDraft: [], selectedId: tool === "muro" ? null : get().selectedId }),
 
@@ -411,5 +437,102 @@ export const useNueva = create<NuevaStore>((set, get) => ({
       canRedo: canRedo(h),
     });
     persistNow(get);
+  },
+
+  nuevaLamina: () => {
+    const s = get();
+    const next = resetDrawing({
+      product: "obra.v2",
+      version: 1,
+      walls: s.walls,
+      openings: s.openings,
+      columns: s.columns,
+      footings: s.footings,
+      beams: s.beams,
+      slabs: s.slabs,
+      archive: s.archive,
+      nextSeq: s.nextSeq,
+      nextHuecoSeq: s.nextHuecoSeq,
+      nextColSeq: s.nextColSeq,
+      nextZapSeq: s.nextZapSeq,
+      nextVigaSeq: s.nextVigaSeq,
+      nextLosaSeq: s.nextLosaSeq,
+      nextArchiveSeq: s.nextArchiveSeq,
+      view: s.view,
+    });
+    const present = emptyScene();
+    set({
+      walls: [],
+      openings: [],
+      columns: [],
+      footings: [],
+      beams: [],
+      slabs: [],
+      selectedId: null,
+      draft: null,
+      polyDraft: [],
+      nextSeq: 1,
+      nextHuecoSeq: 1,
+      nextColSeq: 1,
+      nextZapSeq: 1,
+      nextVigaSeq: 1,
+      nextLosaSeq: 1,
+      nextArchiveSeq: next.nextArchiveSeq,
+      archive: next.archive,
+      hist: histInit(present),
+      canUndo: false,
+      canRedo: false,
+      page: "lamina",
+      view: { panX: 0, panY: 0, ppm: 28 },
+    });
+    persistNow(get);
+  },
+
+  cerrarLamina: () => {
+    const s = get();
+    if (
+      drawingIsEmpty({
+        walls: s.walls,
+        openings: s.openings,
+        columns: s.columns,
+        footings: s.footings,
+        beams: s.beams,
+        slabs: s.slabs,
+      })
+    ) {
+      return null;
+    }
+    const qty = takeoffScene({
+      walls: s.walls,
+      openings: s.openings,
+      columns: s.columns,
+      footings: s.footings,
+      beams: s.beams,
+      slabs: s.slabs,
+    });
+    const hoja = hojaPresupuesto(qty);
+    const id = placaId(s.nextArchiveSeq);
+    const placa: V2Placa = {
+      id,
+      closedAt: new Date().toISOString(),
+      largoMuroM: s.walls.reduce((n, m) => n + muroLargo(m), 0),
+      losaM2: qty.losaM2,
+      estimado: hoja.total,
+      recuento: {
+        muros: s.walls.length,
+        vanos: s.openings.length,
+        columnas: s.columns.length,
+        zapatas: s.footings.length,
+        vigas: s.beams.length,
+        losas: s.slabs.length,
+      },
+    };
+    set({
+      archive: s.archive.concat([placa]),
+      nextArchiveSeq: s.nextArchiveSeq + 1,
+      page: "presupuesto",
+    });
+    persistNow(get);
+    return id;
   },
 }));

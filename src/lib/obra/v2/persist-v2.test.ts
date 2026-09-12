@@ -8,6 +8,7 @@ import {
   emptyV2,
   hydrateV2,
   loadV2,
+  resetDrawing,
   saveV2,
   snapshotV2,
 } from "./persist-v2.ts";
@@ -157,5 +158,40 @@ describe("v2 persist aislamiento", () => {
     assert.equal(legacy.footings.length, 0);
     assert.equal(legacy.beams.length, 0);
     assert.equal(legacy.slabs.length, 0);
+  });
+
+  it("reset V2 no toca obra.jefe y conserva placas", () => {
+    const storage = new Mem();
+    const yuna = JSON.stringify({ version: 1, siteMinutes: 44, page: "plano" });
+    storage.setItem("obra.jefe", yuna);
+    storage.setItem("obra.visita", yuna);
+    const placa = {
+      id: "A-001",
+      closedAt: "2026-09-12T14:00:00.000Z",
+      largoMuroM: 8,
+      losaM2: 12,
+      estimado: 9000,
+      recuento: { muros: 1, vanos: 0, columnas: 0, zapatas: 0, vigas: 0, losas: 1 },
+    };
+    const doc = {
+      ...emptyV2(),
+      walls: [createMuro({ x: 0, y: 0 }, { x: 8, y: 0 }, "M-001")],
+      archive: [placa],
+      nextArchiveSeq: 2,
+      nextSeq: 2,
+    };
+    assert.equal(saveV2(doc, storage), true);
+    const cleared = resetDrawing(loadV2(storage));
+    assert.equal(cleared.walls.length, 0);
+    assert.equal(cleared.columns.length, 0);
+    assert.equal(cleared.slabs.length, 0);
+    assert.equal(cleared.archive.length, 1);
+    assert.equal(cleared.archive[0]?.id, "A-001");
+    assert.equal(saveV2(cleared, storage), true);
+    assert.equal(storage.getItem("obra.jefe"), yuna);
+    assert.equal(storage.getItem("obra.visita"), yuna);
+    const loaded = loadV2(storage);
+    assert.equal(loaded.walls.length, 0);
+    assert.equal(loaded.archive.length, 1);
   });
 });

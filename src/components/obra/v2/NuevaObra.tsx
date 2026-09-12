@@ -1,11 +1,12 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { ModeTabs } from "@/components/obra/ModeTabs";
 import { formatInt } from "@/lib/obra/format";
-import { presupuesto } from "@/lib/obra/v2/cost";
+import { hojaPresupuesto } from "@/lib/obra/v2/cost";
 import { formatM2, formatMeters, muroLargo, polygonArea, vigaLargo } from "@/lib/obra/v2/geometry";
-import { takeoffAsCost, takeoffColumna, takeoffLosa, takeoffMuro, takeoffScene, takeoffViga, takeoffZapata } from "@/lib/obra/v2/quantity";
+import { takeoffColumna, takeoffLosa, takeoffMuro, takeoffScene, takeoffViga, takeoffZapata } from "@/lib/obra/v2/quantity";
 import { useNueva, type V2Tool } from "@/lib/obra/v2/store";
 import { NuevaCanvas } from "./NuevaCanvas";
+import { PresupuestoV2 } from "./PresupuestoV2";
 
 const SEL_HINT = "SEL · elegir un muro";
 
@@ -32,6 +33,12 @@ export function NuevaObra() {
   const setPolyDraft = useNueva((s) => s.setPolyDraft);
   const zoom = useNueva((s) => s.zoom);
   const hydrated = useNueva((s) => s.hydrated);
+  const page = useNueva((s) => s.page);
+  const setPage = useNueva((s) => s.setPage);
+  const archive = useNueva((s) => s.archive);
+  const nuevaLamina = useNueva((s) => s.nuevaLamina);
+  const cerrarLamina = useNueva((s) => s.cerrarLamina);
+  const [confirmNueva, setConfirmNueva] = useState(false);
 
   useEffect(() => {
     hydrate();
@@ -111,7 +118,8 @@ export function NuevaObra() {
 
   const sceneQty = takeoffScene({ walls, openings, columns, footings, beams, slabs });
   const wallQty = selectedWall ? takeoffMuro(selectedWall, undefined, openings) : null;
-  const cost = presupuesto(takeoffAsCost(sceneQty));
+  const hoja = hojaPresupuesto(sceneQty);
+  const hasDrawing = walls.length + openings.length + columns.length + footings.length + beams.length + slabs.length > 0;
 
   const cota = draft
     ? formatMeters(muroLargo(draft))
@@ -212,64 +220,105 @@ export function NuevaObra() {
             </p>
           </div>
         </div>
-        <div data-tools className="mt-2 flex flex-wrap items-center gap-x-1 gap-y-1 border-t border-rule/60 pt-2">
-          <ToolBtn on={tool === "muro"} onClick={() => setTool("muro")} label="MURO" />
-          <ToolBtn on={tool === "seleccionar"} onClick={() => setTool("seleccionar")} label="SEL · elegir un muro" title={SEL_HINT} />
-          <ToolBtn on={tool === "puerta"} onClick={() => setTool("puerta")} label="PUERTA" title="Clic en un muro" />
-          <ToolBtn on={tool === "ventana"} onClick={() => setTool("ventana")} label="VENTANA" title="Clic en un muro" />
-        </div>
-        <div data-tools-struct className="flex flex-wrap items-center gap-x-1 gap-y-1">
-          <ToolBtn on={tool === "columna"} onClick={() => setTool("columna")} label="COLUMNA" />
-          <ToolBtn on={tool === "zapata"} onClick={() => setTool("zapata")} label="ZAPATA" />
-          <ToolBtn on={tool === "viga"} onClick={() => setTool("viga")} label="VIGA" />
-          <ToolBtn on={tool === "losa"} onClick={() => setTool("losa")} label="LOSA" />
-        </div>
-        <div className="flex flex-wrap items-center gap-x-1 gap-y-1">
-          <ToolBtn on={false} onClick={deleteSelected} label="BORRAR" disabled={!selectedId} />
-          <ToolBtn on={false} onClick={undo} label="DESHACER" disabled={!canUndo} />
-          <ToolBtn on={false} onClick={redo} label="REHACER" disabled={!canRedo} />
-          <ToolBtn on={false} onClick={() => zoom({ x: 240, y: 180 }, 1.15)} label="+" />
-          <ToolBtn on={false} onClick={() => zoom({ x: 240, y: 180 }, 0.87)} label="−" />
-          {cota ? (
-            <span data-cota className="small-caps ml-2 text-[0.7rem] tabular-nums text-cyan">
-              {cota}
-              {snapLabel ? ` · ${snapLabel}` : ""}
-            </span>
-          ) : null}
-        </div>
-        <p data-hint className="mt-1 font-serif text-xs italic text-ink-soft">
-          {hint}
-        </p>
+        <nav
+          data-v2-nav
+          className="mt-2 flex flex-wrap items-center gap-1 border-t border-rule/60 pt-2"
+          aria-label="Hojas V2"
+        >
+          <ToolBtn on={page === "lamina"} onClick={() => setPage("lamina")} label="LÁMINA" />
+          <ToolBtn on={page === "presupuesto"} onClick={() => setPage("presupuesto")} label="PRESUPUESTO" />
+          <span className="mx-1 hidden h-4 w-px bg-rule/80 sm:inline-block" />
+          <ToolBtn on={false} onClick={() => setConfirmNueva(true)} label="NUEVA LÁMINA" />
+          <ToolBtn on={false} onClick={() => cerrarLamina()} label="CERRAR LÁMINA" disabled={!hasDrawing} />
+        </nav>
+        {confirmNueva ? (
+          <div
+            data-confirm-nueva
+            className="mt-2 flex flex-wrap items-center gap-2 border border-ink/30 bg-paper px-3 py-2"
+          >
+            <p className="font-serif text-sm italic text-ink">¿Borrar el plano V2? El Valle no se toca.</p>
+            <ToolBtn
+              on={false}
+              onClick={() => {
+                nuevaLamina();
+                setConfirmNueva(false);
+              }}
+              label="BORRAR PLANO"
+            />
+            <ToolBtn on={false} onClick={() => setConfirmNueva(false)} label="NO" />
+          </div>
+        ) : null}
+        {page === "lamina" ? (
+          <>
+            <div data-tools className="mt-2 flex flex-wrap items-center gap-x-1 gap-y-1 border-t border-rule/60 pt-2">
+              <ToolBtn on={tool === "muro"} onClick={() => setTool("muro")} label="MURO" />
+              <ToolBtn
+                on={tool === "seleccionar"}
+                onClick={() => setTool("seleccionar")}
+                label="SEL · elegir un muro"
+                title={SEL_HINT}
+              />
+              <ToolBtn on={tool === "puerta"} onClick={() => setTool("puerta")} label="PUERTA" title="Clic en un muro" />
+              <ToolBtn on={tool === "ventana"} onClick={() => setTool("ventana")} label="VENTANA" title="Clic en un muro" />
+            </div>
+            <div data-tools-struct className="flex flex-wrap items-center gap-x-1 gap-y-1">
+              <ToolBtn on={tool === "columna"} onClick={() => setTool("columna")} label="COLUMNA" />
+              <ToolBtn on={tool === "zapata"} onClick={() => setTool("zapata")} label="ZAPATA" />
+              <ToolBtn on={tool === "viga"} onClick={() => setTool("viga")} label="VIGA" />
+              <ToolBtn on={tool === "losa"} onClick={() => setTool("losa")} label="LOSA" />
+            </div>
+            <div className="flex flex-wrap items-center gap-x-1 gap-y-1">
+              <ToolBtn on={false} onClick={deleteSelected} label="BORRAR" disabled={!selectedId} />
+              <ToolBtn on={false} onClick={undo} label="DESHACER" disabled={!canUndo} />
+              <ToolBtn on={false} onClick={redo} label="REHACER" disabled={!canRedo} />
+              <ToolBtn on={false} onClick={() => zoom({ x: 240, y: 180 }, 1.15)} label="+" />
+              <ToolBtn on={false} onClick={() => zoom({ x: 240, y: 180 }, 0.87)} label="−" />
+              {cota ? (
+                <span data-cota className="small-caps ml-2 text-[0.7rem] tabular-nums text-cyan">
+                  {cota}
+                  {snapLabel ? ` · ${snapLabel}` : ""}
+                </span>
+              ) : null}
+            </div>
+            <p data-hint className="mt-1 font-serif text-xs italic text-ink-soft">
+              {hint}
+            </p>
+          </>
+        ) : (
+          <p className="mt-2 font-serif text-xs italic text-ink-soft">El costo sigue al plano. Vuelve a LÁMINA para dibujar.</p>
+        )}
       </header>
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:flex-row">
-        <main className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
-          {hydrated ? <NuevaCanvas /> : <div className="h-full w-full bg-paper" />}
-        </main>
-        <aside className="max-h-[38vh] shrink-0 overflow-y-auto border-t border-rule/80 bg-paper px-4 py-3 md:max-h-none md:w-72 md:border-l md:border-t-0">
-          <p className="small-caps text-[0.62rem] text-cyan">Cantidad</p>
-          <h2 className="font-serif text-2xl text-ink">{panelTitle}</h2>
-          <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-4 md:grid-cols-1">
-            <QtyBig k="Longitud" v={formatMeters(largo)} />
-            <QtyBig k="Área neta" v={formatM2(areaNeta)} />
-            <QtyBig
-              k="Blocks"
-              v={String(blocksNow)}
-              sub={blocksDelta < 0 ? `−${-blocksDelta} blocks` : undefined}
-            />
-            <QtyBig k="Hormigón" v={`${hormigon.toFixed(2)} m³`} />
-            <QtyBig k="Acero est." v={`${acero.toFixed(2)} t`} />
-            {losaM2 > 0 ? <QtyBig k="Losa" v={formatM2(losaM2)} /> : null}
-          </dl>
-          <p className="mt-4 small-caps text-[0.55rem] text-ink-soft">Est. · una línea</p>
-          <p className="font-sans text-sm tabular-nums text-ink" data-cost>
-            {formatInt(cost.total)}
-          </p>
-          <p className="mt-4 font-serif text-xs italic leading-snug text-ink-soft">
-            Geometría → cantidad. Sin pliego Q50. F5 conserva esta lámina en su propia caja.
-          </p>
-        </aside>
-      </div>
+      {page === "presupuesto" ? (
+        <PresupuestoV2 hoja={hoja} archive={archive} />
+      ) : (
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:flex-row">
+          <main className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
+            {hydrated ? <NuevaCanvas /> : <div className="h-full w-full bg-paper" />}
+          </main>
+          <aside className="max-h-[38vh] shrink-0 overflow-y-auto border-t border-rule/80 bg-paper px-4 py-3 md:max-h-none md:w-72 md:border-l md:border-t-0">
+            <p className="small-caps text-[0.62rem] text-cyan">Cantidad</p>
+            <h2 className="font-serif text-2xl text-ink">{panelTitle}</h2>
+            <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-4 md:grid-cols-1">
+              <QtyBig k="Longitud" v={formatMeters(largo)} />
+              <QtyBig k="Área neta" v={formatM2(areaNeta)} />
+              <QtyBig
+                k="Blocks"
+                v={String(blocksNow)}
+                sub={blocksDelta < 0 ? `−${-blocksDelta} blocks` : undefined}
+              />
+              <QtyBig k="Hormigón" v={`${hormigon.toFixed(2)} m³`} />
+              <QtyBig k="Acero est." v={`${acero.toFixed(2)} t`} />
+              {losaM2 > 0 ? <QtyBig k="Losa" v={formatM2(losaM2)} /> : null}
+            </dl>
+            <p className="mt-4 small-caps text-[0.55rem] text-ink-soft">Estimado RD$</p>
+            <p className="font-sans text-3xl tabular-nums leading-none text-ink" data-cost>
+              {formatInt(hoja.total)}
+            </p>
+            <p className="mt-1 font-serif text-xs italic text-ink-soft">simulación, no cotización</p>
+          </aside>
+        </div>
+      )}
     </div>
   );
 }

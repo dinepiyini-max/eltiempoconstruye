@@ -19,8 +19,11 @@ export const V2_SECTIONS: Record<
 
 export const V2_UNIT_PRICES = {
   excavacion: { price: 180, unit: "m³", label: "excavación" },
-  hormigon: { price: 4200, unit: "m³", label: "hormigón" },
-  acero: { price: 62000, unit: "t", label: "acero" },
+  hormigon: { price: 4200, unit: "m³", label: "Hormigón" },
+  acero: { price: 62000, unit: "t", label: "Acero est." },
+  block6: { price: 28, unit: "u", label: 'Block 6"' },
+  mortero: { price: 1800, unit: "m³", label: "Mortero" },
+  albanil: { price: 450, unit: "m²", label: "Mano de obra albañil" },
 } as const;
 
 export type V2PriceKey = keyof typeof V2_UNIT_PRICES;
@@ -34,6 +37,8 @@ export const V2_MURO = {
   espesorM: 0.2,
   minLargoM: 0.3,
   blockFaceM2: 0.08,
+  /** m³ de mortero por m² de muro neto. Juego, no ERP. */
+  morteroM3PerM2: 0.02,
 } as const;
 
 /** Vanos sobre muro. Ancho por defecto: puerta 0.90 m, ventana 1.20 m. */
