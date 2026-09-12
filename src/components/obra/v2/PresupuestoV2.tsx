@@ -17,11 +17,11 @@ export function PresupuestoV2({ hoja, archive }: { hoja: HojaPresupuesto; archiv
           <table className="w-full min-w-[32rem] border-collapse text-left">
             <thead>
               <tr className="small-caps border-b border-ink/40 text-[0.62rem] text-ink-soft">
-                <th className="py-2 pr-3 font-medium">Partida</th>
-                <th className="py-2 pr-3 font-medium">Cantidad</th>
-                <th className="py-2 pr-3 font-medium">Unidad</th>
+                <th className="py-2 pr-3 font-medium">PARTIDA</th>
+                <th className="py-2 pr-3 font-medium">CANTIDAD</th>
+                <th className="py-2 pr-3 font-medium">UNIDAD</th>
                 <th className="py-2 pr-3 font-medium">P.U.</th>
-                <th className="py-2 font-medium">Subtotal</th>
+                <th className="py-2 font-medium">SUBTOTAL</th>
               </tr>
             </thead>
             <tbody>
