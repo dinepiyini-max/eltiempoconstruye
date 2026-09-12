@@ -74,3 +74,6 @@ export const V2_LOSA_PLANTA = {
   minAreaM2: 0.4,
   steelTPerM3: 0.1,
 } as const;
+
+/** Reloj de lámina. No es siteMinutes. */
+export const V2_RETRABAJO = { factor: 0.08 } as const;

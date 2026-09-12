@@ -41,4 +41,13 @@ describe("v2 cost", () => {
     assert.equal(empty.empty, true);
     assert.equal(empty.total, 0);
   });
+
+  it("retrabajo suma factor sobre el total", () => {
+    const muro = createMuro({ x: 0, y: 0 }, { x: 8, y: 0 }, "M-001");
+    const base = hojaPresupuesto(takeoffScene({ walls: [muro] }));
+    const re = hojaPresupuesto(takeoffScene({ walls: [muro] }), { rework: true });
+    assert.ok(re.total > base.total);
+    assert.ok(re.lineas.some((ln) => ln.key === "retrabajo"));
+    assert.ok(Math.abs(re.total - base.total * 1.08) < 1e-6);
+  });
 });

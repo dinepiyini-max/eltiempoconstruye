@@ -3,7 +3,7 @@
  * Precios solo aquí y en tables.ts.
  */
 import type { Takeoff, TakeoffScene } from "./quantity.ts";
-import { V2_UNIT_PRICES, type V2PriceKey } from "./tables.ts";
+import { V2_RETRABAJO, V2_UNIT_PRICES, type V2PriceKey } from "./tables.ts";
 
 export type CostItem = {
   key: V2PriceKey;
@@ -34,7 +34,7 @@ export function presupuesto(q: Takeoff): Presupuesto {
   return { items, total };
 }
 
-export type HojaKey = "block6" | "mortero" | "hormigon" | "acero" | "albanil";
+export type HojaKey = "block6" | "mortero" | "hormigon" | "acero" | "albanil" | "retrabajo";
 
 export type HojaLinea = {
   key: HojaKey;
@@ -51,7 +51,7 @@ export type HojaPresupuesto = {
   empty: boolean;
 };
 
-const HOJA_ORDER: { key: HojaKey; qty: (q: TakeoffScene) => number }[] = [
+const HOJA_ORDER: { key: Exclude<HojaKey, "retrabajo">; qty: (q: TakeoffScene) => number }[] = [
   { key: "block6", qty: (q) => q.blocksEst },
   { key: "mortero", qty: (q) => q.morteroM3 },
   { key: "hormigon", qty: (q) => q.hormigonM3 },
@@ -59,7 +59,7 @@ const HOJA_ORDER: { key: HojaKey; qty: (q: TakeoffScene) => number }[] = [
   { key: "albanil", qty: (q) => q.albanilM2 },
 ];
 
-export function hojaPresupuesto(q: TakeoffScene): HojaPresupuesto {
+export function hojaPresupuesto(q: TakeoffScene, opts: { rework?: boolean } = {}): HojaPresupuesto {
   const lineas: HojaLinea[] = HOJA_ORDER.map(({ key, qty }) => {
     const spec = V2_UNIT_PRICES[key];
     const n = Math.max(0, qty(q));
@@ -72,6 +72,18 @@ export function hojaPresupuesto(q: TakeoffScene): HojaPresupuesto {
       subtotal: n * spec.price,
     };
   });
-  const total = lineas.reduce((a, it) => a + it.subtotal, 0);
+  let total = lineas.reduce((a, it) => a + it.subtotal, 0);
+  if (opts.rework && total > 0) {
+    const extra = total * V2_RETRABAJO.factor;
+    lineas.push({
+      key: "retrabajo",
+      partida: "Retrabajo",
+      qty: 1,
+      unit: "gl",
+      pu: extra,
+      subtotal: extra,
+    });
+    total += extra;
+  }
   return { lineas, total, empty: total <= 0 };
 }

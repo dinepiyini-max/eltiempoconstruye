@@ -171,6 +171,7 @@ describe("v2 persist aislamiento", () => {
       largoMuroM: 8,
       losaM2: 12,
       estimado: 9000,
+      estado: "cerrada" as const,
       recuento: { muros: 1, vanos: 0, columnas: 0, zapatas: 0, vigas: 0, losas: 1 },
     };
     const doc = {
@@ -187,11 +188,32 @@ describe("v2 persist aislamiento", () => {
     assert.equal(cleared.slabs.length, 0);
     assert.equal(cleared.archive.length, 1);
     assert.equal(cleared.archive[0]?.id, "A-001");
+    assert.equal(cleared.clock.running, false);
+    assert.equal(cleared.clock.pace, "pausa");
     assert.equal(saveV2(cleared, storage), true);
     assert.equal(storage.getItem("obra.jefe"), yuna);
     assert.equal(storage.getItem("obra.visita"), yuna);
     const loaded = loadV2(storage);
     assert.equal(loaded.walls.length, 0);
     assert.equal(loaded.archive.length, 1);
+  });
+
+  it("clock V2 hidrata sin tocar jefe; placa vieja es CERRADA", () => {
+    const storage = new Mem();
+    const yuna = JSON.stringify({ version: 1, siteMinutes: 99 });
+    storage.setItem("obra.jefe", yuna);
+    const legacy = hydrateV2({
+      product: "obra.v2",
+      version: 1,
+      walls: [{ id: "M-001", a: { x: 0, y: 0 }, b: { x: 4, y: 0 }, espesor: 0.2 }],
+      archive: [{ id: "A-001", closedAt: "2026-09-12", largoMuroM: 4, losaM2: 9, estimado: 1, recuento: { muros: 1, vanos: 0, columnas: 0, zapatas: 0, vigas: 0, losas: 1 } }],
+    });
+    assert.ok(legacy);
+    assert.equal(legacy.clock.running, false);
+    assert.equal(legacy.clock.pace, "pausa");
+    assert.equal(legacy.archive[0]?.estado, "cerrada");
+    assert.equal(legacy.archive[0]?.losaM2, 9);
+    saveV2(legacy, storage);
+    assert.equal(storage.getItem("obra.jefe"), yuna);
   });
 });

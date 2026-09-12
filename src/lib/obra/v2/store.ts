@@ -35,6 +35,17 @@ import {
 import { canRedo, canUndo, histInit, histPush, histRedo, histUndo, type Hist } from "./history.ts";
 import { hojaPresupuesto } from "./cost.ts";
 import {
+  absenceLine,
+  allPresentDone,
+  assembleFrentes,
+  clampDone,
+  idleClock,
+  scopeFromScene,
+  tickFronts,
+  type V2ClockState,
+  type V2Pace,
+} from "./clock.ts";
+import {
   drawingIsEmpty,
   loadV2,
   placaId,
@@ -48,7 +59,7 @@ import { V2_COLUMNA, V2_LOSA_PLANTA, V2_MURO, V2_VIGA, V2_ZAPATA } from "./table
 import { fitView, zoomAt } from "./draw-v2.ts";
 
 export type V2Tool = "muro" | "seleccionar" | "puerta" | "ventana" | "columna" | "zapata" | "viga" | "losa";
-export type V2Page = "lamina" | "presupuesto";
+export type V2Page = "lamina" | "presupuesto" | "ejecucion";
 
 export type V2Draft = { a: Pt; b: Pt; kind: SnapKind };
 
@@ -82,6 +93,9 @@ type NuevaStore = {
   nextArchiveSeq: number;
   archive: V2Placa[];
   page: V2Page;
+  clock: V2ClockState;
+  lastTick: number | null;
+  notice: string | null;
   hist: Hist<NuevaScene>;
   hydrated: boolean;
   hydrate: () => void;
@@ -107,6 +121,10 @@ type NuevaStore = {
   snap: (raw: Pt, origin: Pt | null) => { point: Pt; kind: SnapKind };
   nuevaLamina: () => void;
   cerrarLamina: () => string | null;
+  iniciarEjecucion: () => void;
+  setPace: (pace: V2Pace) => void;
+  tickClock: (now: number) => void;
+  resumeClock: () => void;
   canUndo: boolean;
   canRedo: boolean;
 };
@@ -148,8 +166,19 @@ function persistNow(get: () => NuevaStore) {
     nextLosaSeq: s.nextLosaSeq,
     nextArchiveSeq: s.nextArchiveSeq,
     archive: s.archive,
+    clock: s.clock,
     view: s.view,
   });
+}
+
+function clockAfterEdit(clock: V2ClockState, scene: NuevaScene): V2ClockState {
+  if (!clock.running) return clock;
+  return {
+    ...clock,
+    rework: true,
+    executed: false,
+    done: clampDone(clock.done, scopeFromScene(scene)),
+  };
 }
 
 function applyScene(
@@ -158,7 +187,10 @@ function applyScene(
   next: NuevaScene,
   extra: Partial<NuevaStore> = {},
 ) {
-  const h = histPush(get().hist, next);
+  const prev = get();
+  const h = histPush(prev.hist, next);
+  const clock = clockAfterEdit(prev.clock, next);
+  const running = prev.clock.running;
   set({
     walls: next.walls,
     openings: next.openings,
@@ -171,6 +203,8 @@ function applyScene(
     canRedo: canRedo(h),
     draft: null,
     polyDraft: [],
+    clock,
+    notice: running ? "RETRABAJO · el plano cambió a mitad." : prev.notice,
     ...extra,
   });
   persistNow(get);
@@ -178,6 +212,71 @@ function applyScene(
 
 function emptyScene(): NuevaScene {
   return sceneOf([], [], [], [], [], []);
+}
+
+function applyTick(
+  set: (p: Partial<NuevaStore>) => void,
+  get: () => NuevaStore,
+  dtSec: number,
+  now: number,
+  fromResume: boolean,
+) {
+  const s = get();
+  const scope = scopeFromScene(s);
+  const tick = tickFronts(s.clock.done, scope, dtSec, s.clock.pace);
+  const frentes = assembleFrentes(scope, tick.done);
+  const doneAll = allPresentDone(frentes);
+  let archive = s.archive;
+  let nextArchiveSeq = s.nextArchiveSeq;
+  let executed = s.clock.executed;
+  if (doneAll && !executed) {
+    const qty = takeoffScene({
+      walls: s.walls,
+      openings: s.openings,
+      columns: s.columns,
+      footings: s.footings,
+      beams: s.beams,
+      slabs: s.slabs,
+    });
+    const hoja = hojaPresupuesto(qty, { rework: s.clock.rework });
+    archive = archive.concat([
+      {
+        id: placaId(nextArchiveSeq),
+        closedAt: new Date().toISOString(),
+        largoMuroM: s.walls.reduce((n, m) => n + muroLargo(m), 0),
+        losaM2: qty.losaM2,
+        estimado: hoja.total,
+        estado: "ejecutada",
+        recuento: {
+          muros: s.walls.length,
+          vanos: s.openings.length,
+          columnas: s.columns.length,
+          zapatas: s.footings.length,
+          vigas: s.beams.length,
+          losas: s.slabs.length,
+        },
+      },
+    ]);
+    nextArchiveSeq += 1;
+    executed = true;
+  }
+  const notice = fromResume ? absenceLine(tick.delta) ?? s.notice : s.notice;
+  set({
+    clock: {
+      ...s.clock,
+      done: tick.done,
+      laminaMs: s.clock.laminaMs + tick.laminaMs,
+      pace: doneAll ? "pausa" : s.clock.pace,
+      executed,
+    },
+    lastTick: now,
+    notice,
+    archive,
+    nextArchiveSeq,
+  });
+  if (fromResume || doneAll || Math.floor((s.clock.laminaMs + tick.laminaMs) / 400) !== Math.floor(s.clock.laminaMs / 400)) {
+    persistNow(get);
+  }
 }
 
 export const useNueva = create<NuevaStore>((set, get) => ({
@@ -201,6 +300,9 @@ export const useNueva = create<NuevaStore>((set, get) => ({
   nextArchiveSeq: 1,
   archive: [],
   page: "lamina",
+  clock: idleClock(),
+  lastTick: null,
+  notice: null,
   hist: histInit<NuevaScene>(emptyScene()),
   hydrated: false,
   canUndo: false,
@@ -225,6 +327,9 @@ export const useNueva = create<NuevaStore>((set, get) => ({
       nextLosaSeq: doc.nextLosaSeq,
       nextArchiveSeq: doc.nextArchiveSeq,
       archive: doc.archive,
+      clock: doc.clock,
+      lastTick: null,
+      notice: null,
       view: doc.view ?? get().view,
       selectedId: null,
       draft: null,
@@ -238,7 +343,16 @@ export const useNueva = create<NuevaStore>((set, get) => ({
 
   flush: () => persistNow(get),
 
-  setPage: (page) => set({ page }),
+  setPage: (page) => {
+    const prev = get().page;
+    if (page === prev) return;
+    if (page !== "ejecucion") {
+      set({ page, lastTick: null });
+      return;
+    }
+    set({ page });
+    get().resumeClock();
+  },
 
   setTool: (tool) => set({ tool, draft: null, polyDraft: [], selectedId: tool === "muro" ? null : get().selectedId }),
 
@@ -402,7 +516,9 @@ export const useNueva = create<NuevaStore>((set, get) => ({
   },
 
   undo: () => {
-    const h = histUndo(get().hist);
+    const s = get();
+    const h = histUndo(s.hist);
+    const clock = clockAfterEdit(s.clock, h.present);
     set({
       hist: h,
       walls: h.present.walls,
@@ -416,12 +532,16 @@ export const useNueva = create<NuevaStore>((set, get) => ({
       polyDraft: [],
       canUndo: canUndo(h),
       canRedo: canRedo(h),
+      clock,
+      notice: s.clock.running ? "RETRABAJO · el plano cambió a mitad." : s.notice,
     });
     persistNow(get);
   },
 
   redo: () => {
-    const h = histRedo(get().hist);
+    const s = get();
+    const h = histRedo(s.hist);
+    const clock = clockAfterEdit(s.clock, h.present);
     set({
       hist: h,
       walls: h.present.walls,
@@ -435,6 +555,8 @@ export const useNueva = create<NuevaStore>((set, get) => ({
       polyDraft: [],
       canUndo: canUndo(h),
       canRedo: canRedo(h),
+      clock,
+      notice: s.clock.running ? "RETRABAJO · el plano cambió a mitad." : s.notice,
     });
     persistNow(get);
   },
@@ -458,6 +580,7 @@ export const useNueva = create<NuevaStore>((set, get) => ({
       nextVigaSeq: s.nextVigaSeq,
       nextLosaSeq: s.nextLosaSeq,
       nextArchiveSeq: s.nextArchiveSeq,
+      clock: s.clock,
       view: s.view,
     });
     const present = emptyScene();
@@ -483,6 +606,9 @@ export const useNueva = create<NuevaStore>((set, get) => ({
       canUndo: false,
       canRedo: false,
       page: "lamina",
+      clock: idleClock(),
+      lastTick: null,
+      notice: null,
       view: { panX: 0, panY: 0, ppm: 28 },
     });
     persistNow(get);
@@ -510,7 +636,13 @@ export const useNueva = create<NuevaStore>((set, get) => ({
       beams: s.beams,
       slabs: s.slabs,
     });
-    const hoja = hojaPresupuesto(qty);
+    const hoja = hojaPresupuesto(qty, { rework: s.clock.rework });
+    const frentes = assembleFrentes(scopeFromScene(s), s.clock.done);
+    const estado = allPresentDone(frentes) || s.clock.executed ? "ejecutada" : "cerrada";
+    if (s.clock.executed) {
+      set({ page: "presupuesto", lastTick: null });
+      return s.archive[s.archive.length - 1]?.id ?? null;
+    }
     const id = placaId(s.nextArchiveSeq);
     const placa: V2Placa = {
       id,
@@ -518,6 +650,7 @@ export const useNueva = create<NuevaStore>((set, get) => ({
       largoMuroM: s.walls.reduce((n, m) => n + muroLargo(m), 0),
       losaM2: qty.losaM2,
       estimado: hoja.total,
+      estado,
       recuento: {
         muros: s.walls.length,
         vanos: s.openings.length,
@@ -531,8 +664,67 @@ export const useNueva = create<NuevaStore>((set, get) => ({
       archive: s.archive.concat([placa]),
       nextArchiveSeq: s.nextArchiveSeq + 1,
       page: "presupuesto",
+      lastTick: null,
+      clock: estado === "ejecutada" ? { ...s.clock, executed: true, pace: "pausa" } : s.clock,
     });
     persistNow(get);
     return id;
+  },
+
+  iniciarEjecucion: () => {
+    const s = get();
+    const scope = scopeFromScene(s);
+    const frentes = assembleFrentes(scope, s.clock.done);
+    if (!frentes.some((f) => f.present)) return;
+    set({
+      page: "ejecucion",
+      lastTick: Date.now(),
+      notice: null,
+      clock: {
+        ...s.clock,
+        running: true,
+        pace: "normal",
+        startedAt: s.clock.startedAt ?? new Date().toISOString(),
+      },
+    });
+    persistNow(get);
+  },
+
+  setPace: (pace) => {
+    const s = get();
+    if (!s.clock.running) return;
+    set({
+      clock: { ...s.clock, pace },
+      lastTick: pace === "normal" && s.page === "ejecucion" ? Date.now() : null,
+    });
+    persistNow(get);
+  },
+
+  tickClock: (now) => {
+    const s = get();
+    if (s.page !== "ejecucion" || !s.clock.running || s.clock.pace !== "normal") return;
+    const last = s.lastTick ?? now;
+    const dt = Math.max(0, Math.min(0.25, (now - last) / 1000));
+    if (dt < 0.016) {
+      if (!s.lastTick) set({ lastTick: now });
+      return;
+    }
+    applyTick(set, get, dt, now, false);
+  },
+
+  resumeClock: () => {
+    const s = get();
+    if (s.page !== "ejecucion" || !s.clock.running || s.clock.pace !== "normal") {
+      if (s.page === "ejecucion") set({ lastTick: Date.now() });
+      return;
+    }
+    const now = Date.now();
+    const last = s.lastTick;
+    if (last == null) {
+      set({ lastTick: now });
+      return;
+    }
+    const dt = Math.max(0, Math.min(120, (now - last) / 1000));
+    applyTick(set, get, dt, now, true);
   },
 }));

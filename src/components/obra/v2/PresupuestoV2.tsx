@@ -3,7 +3,15 @@ import type { HojaPresupuesto } from "@/lib/obra/v2/cost";
 import type { V2Placa } from "@/lib/obra/v2/persist-v2";
 import { formatM2, formatMeters } from "@/lib/obra/v2/geometry";
 
-export function PresupuestoV2({ hoja, archive }: { hoja: HojaPresupuesto; archive: V2Placa[] }) {
+export function PresupuestoV2({
+  hoja,
+  archive,
+  abierta,
+}: {
+  hoja: HojaPresupuesto;
+  archive: V2Placa[];
+  abierta?: V2Placa | null;
+}) {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-6" data-v2-presupuesto>
       <p className="small-caps text-[0.62rem] text-cyan">Hoja · NUEVA OBRA</p>
@@ -43,31 +51,47 @@ export function PresupuestoV2({ hoja, archive }: { hoja: HojaPresupuesto; archiv
         {formatInt(hoja.total)}
       </p>
       <p className="mt-2 font-serif text-sm italic text-ink-soft">simulación, no cotización</p>
+      {hoja.lineas.some((ln) => ln.key === "retrabajo") ? (
+        <p data-retrabajo className="stamp stamp-flat mt-3 inline-block px-2.5 py-1.5 text-[0.62rem]">
+          RETRABAJO
+        </p>
+      ) : null}
 
-      {archive.length ? (
-        <section className="mt-10" data-v2-archivo>
-          <p className="small-caps text-[0.62rem] text-cyan">Archivo V2</p>
+      <section className="mt-10" data-v2-archivo>
+        <p className="small-caps text-[0.62rem] text-cyan">Archivo V2</p>
+        {abierta || archive.length ? (
           <ul className="mt-3 grid gap-3 sm:grid-cols-2">
+            {abierta ? <PlacaCard key="abierta" p={abierta} /> : null}
             {archive.map((p) => (
-              <li key={p.id} className="border border-ink/30 bg-paper px-3 py-3" data-placa={p.id}>
-                <p className="small-caps text-[0.62rem] text-stamp">{p.id}</p>
-                <p className="font-serif text-lg text-ink">{formatFecha(p.closedAt)}</p>
-                <p className="mt-1 font-sans text-sm tabular-nums text-ink">
-                  {formatMeters(p.largoMuroM)} muro · {formatM2(p.losaM2)} losa
-                </p>
-                <p className="font-sans text-xl tabular-nums text-ink">{formatInt(p.estimado)}</p>
-                <p className="mt-1 small-caps text-[0.52rem] leading-snug text-ink-soft">
-                  {p.recuento.muros} muros · {p.recuento.vanos} vanos · {p.recuento.columnas} col · {p.recuento.vigas}{" "}
-                  vigas · {p.recuento.losas} losas
-                </p>
-              </li>
+              <PlacaCard key={p.id} p={p} />
             ))}
           </ul>
-        </section>
-      ) : (
-        <p className="mt-10 font-serif text-sm italic text-ink-soft">Cerrar lámina deja una placa aquí. No es el archivo del Q50.</p>
-      )}
+        ) : (
+          <p className="mt-3 font-serif text-sm italic text-ink-soft">
+            Cerrar lámina deja una placa aquí. No es el archivo del Q50.
+          </p>
+        )}
+      </section>
     </div>
+  );
+}
+
+function PlacaCard({ p }: { p: V2Placa }) {
+  return (
+    <li className="border border-ink/30 bg-paper px-3 py-3" data-placa={p.id} data-estado={p.estado}>
+      <p className="small-caps text-[0.62rem] text-stamp">
+        {p.id} · {p.estado.toUpperCase()}
+      </p>
+      <p className="font-serif text-lg text-ink">{p.estado === "abierta" ? "Lámina en curso" : formatFecha(p.closedAt)}</p>
+      <p className="mt-1 font-sans text-sm tabular-nums text-ink">
+        {formatMeters(p.largoMuroM)} muro · {formatM2(p.losaM2)} losa
+      </p>
+      <p className="font-sans text-xl tabular-nums text-ink">{formatInt(p.estimado)}</p>
+      <p className="mt-1 small-caps text-[0.52rem] leading-snug text-ink-soft">
+        {p.recuento.muros} muros · {p.recuento.vanos} vanos · {p.recuento.columnas} col · {p.recuento.zapatas} zap ·{" "}
+        {p.recuento.vigas} vigas · {p.recuento.losas} losas
+      </p>
+    </li>
   );
 }
 

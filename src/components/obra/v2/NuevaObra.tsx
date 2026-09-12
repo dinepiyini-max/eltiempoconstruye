@@ -7,6 +7,7 @@ import { takeoffColumna, takeoffLosa, takeoffMuro, takeoffScene, takeoffViga, ta
 import { useNueva, type V2Tool } from "@/lib/obra/v2/store";
 import { NuevaCanvas } from "./NuevaCanvas";
 import { PresupuestoV2 } from "./PresupuestoV2";
+import { EjecucionV2 } from "./EjecucionV2";
 
 const SEL_HINT = "SEL · elegir un muro";
 
@@ -38,6 +39,7 @@ export function NuevaObra() {
   const archive = useNueva((s) => s.archive);
   const nuevaLamina = useNueva((s) => s.nuevaLamina);
   const cerrarLamina = useNueva((s) => s.cerrarLamina);
+  const clock = useNueva((s) => s.clock);
   const [confirmNueva, setConfirmNueva] = useState(false);
 
   useEffect(() => {
@@ -118,7 +120,7 @@ export function NuevaObra() {
 
   const sceneQty = takeoffScene({ walls, openings, columns, footings, beams, slabs });
   const wallQty = selectedWall ? takeoffMuro(selectedWall, undefined, openings) : null;
-  const hoja = hojaPresupuesto(sceneQty);
+  const hoja = hojaPresupuesto(sceneQty, { rework: clock.rework });
   const hasDrawing = walls.length + openings.length + columns.length + footings.length + beams.length + slabs.length > 0;
 
   const cota = draft
@@ -227,6 +229,7 @@ export function NuevaObra() {
         >
           <ToolBtn on={page === "lamina"} onClick={() => setPage("lamina")} label="LÁMINA" />
           <ToolBtn on={page === "presupuesto"} onClick={() => setPage("presupuesto")} label="PRESUPUESTO" />
+          <ToolBtn on={page === "ejecucion"} onClick={() => setPage("ejecucion")} label="EJECUCIÓN" />
           <span className="mx-1 hidden h-4 w-px bg-rule/80 sm:inline-block" />
           <ToolBtn on={false} onClick={() => setConfirmNueva(true)} label="NUEVA LÁMINA" />
           <ToolBtn on={false} onClick={() => cerrarLamina()} label="CERRAR LÁMINA" disabled={!hasDrawing} />
@@ -284,13 +287,42 @@ export function NuevaObra() {
               {hint}
             </p>
           </>
+        ) : page === "ejecucion" ? (
+          <p className="mt-2 font-serif text-xs italic text-ink-soft">
+            Este reloj es de esta lámina. El río no corre aquí.
+          </p>
         ) : (
           <p className="mt-2 font-serif text-xs italic text-ink-soft">El costo sigue al plano. Vuelve a LÁMINA para dibujar.</p>
         )}
       </header>
 
       {page === "presupuesto" ? (
-        <PresupuestoV2 hoja={hoja} archive={archive} />
+        <PresupuestoV2
+          hoja={hoja}
+          archive={archive}
+          abierta={
+            hasDrawing
+              ? {
+                  id: "ABIERTA",
+                  closedAt: "",
+                  largoMuroM: walls.reduce((n, m) => n + muroLargo(m), 0),
+                  losaM2: sceneQty.losaM2,
+                  estimado: hoja.total,
+                  estado: "abierta" as const,
+                  recuento: {
+                    muros: walls.length,
+                    vanos: openings.length,
+                    columnas: columns.length,
+                    zapatas: footings.length,
+                    vigas: beams.length,
+                    losas: slabs.length,
+                  },
+                }
+              : null
+          }
+        />
+      ) : page === "ejecucion" ? (
+        <EjecucionV2 />
       ) : (
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:flex-row">
           <main className="relative min-h-0 min-w-0 flex-1 overflow-hidden">

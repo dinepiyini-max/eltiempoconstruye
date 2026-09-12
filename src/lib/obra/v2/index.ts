@@ -8,6 +8,7 @@
  *   quantity.ts   takeoff desde Geometry
  *   cost.ts       presupuesto = qty × precio
  *   history.ts    undo / redo en memoria
+ *   clock.ts      reloj de lámina (no siteMinutes)
  *   persist-v2.ts caja obra.v2
  */
 export {
@@ -15,6 +16,7 @@ export {
   V2_HUECO,
   V2_LOSA_PLANTA,
   V2_MURO,
+  V2_RETRABAJO,
   V2_SCALE_M_PER_UNIT,
   V2_SECTIONS,
   V2_SHEET,
@@ -103,6 +105,23 @@ export type { Takeoff, TakeoffMuro, TakeoffScene } from "./quantity.ts";
 
 export { hojaPresupuesto, presupuesto } from "./cost.ts";
 export type { CostItem, HojaLinea, HojaPresupuesto, Presupuesto } from "./cost.ts";
+
+export {
+  FRENTE_LABEL,
+  FRENTE_NA,
+  FRENTE_ORDER,
+  V2_CLOCK,
+  absenceLine,
+  allPresentDone,
+  assembleFrentes,
+  clampDone,
+  formatLaminaClock,
+  idleClock,
+  pctOf,
+  scopeFromScene,
+  tickFronts,
+} from "./clock.ts";
+export type { FrenteId, FrenteVista, FrontDone, V2ClockState, V2Pace, V2PlacaEstado } from "./clock.ts";
 
 export { canRedo, canUndo, histInit, histPush, histRedo, histUndo } from "./history.ts";
 

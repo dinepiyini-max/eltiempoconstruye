@@ -20,6 +20,7 @@ import {
   type Zapata,
 } from "./geometry.ts";
 import { V2_COLUMNA, V2_HUECO, V2_MURO, V2_VIGA, V2_ZAPATA } from "./tables.ts";
+import { idleClock, type V2ClockState, type V2PlacaEstado } from "./clock.ts";
 
 export const V2_LIVE_KEY = "obra.v2";
 export const V2_BAK_KEY = "obra.v2.bak";
@@ -38,6 +39,7 @@ export type V2Placa = {
   largoMuroM: number;
   losaM2: number;
   estimado: number;
+  estado: V2PlacaEstado;
   recuento: {
     muros: number;
     vanos: number;
@@ -65,6 +67,7 @@ export type V2Document = {
   nextVigaSeq: number;
   nextLosaSeq: number;
   nextArchiveSeq: number;
+  clock: V2ClockState;
   view: V2View | null;
 };
 
@@ -107,6 +110,7 @@ export function emptyV2(): V2Document {
     nextVigaSeq: 1,
     nextLosaSeq: 1,
     nextArchiveSeq: 1,
+    clock: idleClock(),
     view: null,
   };
 }
@@ -129,6 +133,7 @@ export function snapshotV2(doc: V2Document): V2Document {
     nextVigaSeq: doc.nextVigaSeq,
     nextLosaSeq: doc.nextLosaSeq,
     nextArchiveSeq: doc.nextArchiveSeq,
+    clock: cloneClock(doc.clock),
     view: doc.view ? { panX: doc.view.panX, panY: doc.view.panY, ppm: doc.view.ppm } : null,
   };
 }
@@ -140,7 +145,20 @@ function clonePlaca(p: V2Placa): V2Placa {
     largoMuroM: p.largoMuroM,
     losaM2: p.losaM2,
     estimado: p.estimado,
+    estado: p.estado,
     recuento: { ...p.recuento },
+  };
+}
+
+function cloneClock(c: V2ClockState): V2ClockState {
+  return {
+    running: !!c.running,
+    pace: c.pace === "normal" ? "normal" : "pausa",
+    laminaMs: Math.max(0, c.laminaMs),
+    startedAt: c.startedAt,
+    done: { cim: c.done.cim, est: c.done.est, alb: c.done.alb },
+    rework: !!c.rework,
+    executed: !!c.executed,
   };
 }
 
@@ -261,6 +279,25 @@ function migrateView(raw: unknown): V2View | null {
   return { panX: num(raw.panX, 0), panY: num(raw.panY, 0), ppm };
 }
 
+function migrateClock(raw: unknown): V2ClockState {
+  const idle = idleClock();
+  if (!isObject(raw)) return idle;
+  const doneRaw = isObject(raw.done) ? raw.done : {};
+  return {
+    running: raw.running === true,
+    pace: raw.pace === "normal" ? "normal" : "pausa",
+    laminaMs: Math.max(0, num(raw.laminaMs, 0)),
+    startedAt: typeof raw.startedAt === "string" ? raw.startedAt : null,
+    done: {
+      cim: Math.max(0, num(doneRaw.cim, 0)),
+      est: Math.max(0, num(doneRaw.est, 0)),
+      alb: Math.max(0, num(doneRaw.alb, 0)),
+    },
+    rework: raw.rework === true,
+    executed: raw.executed === true,
+  };
+}
+
 function migrateArchive(raw: unknown): V2Placa[] {
   if (!Array.isArray(raw)) return [];
   const out: V2Placa[] = [];
@@ -278,6 +315,7 @@ function migrateArchive(raw: unknown): V2Placa[] {
       largoMuroM: Math.max(0, num(item.largoMuroM, 0)),
       losaM2: Math.max(0, num(item.losaM2, 0)),
       estimado: Math.max(0, num(item.estimado, 0)),
+      estado: item.estado === "ejecutada" || item.estado === "abierta" ? item.estado : "cerrada",
       recuento: {
         muros: Math.max(0, num(rec.muros, 0)),
         vanos: Math.max(0, num(rec.vanos, 0)),
@@ -360,6 +398,7 @@ export function hydrateV2(parsed: unknown): V2Document | null {
       /^A-/,
       num(parsed.nextArchiveSeq, 1),
     ),
+    clock: migrateClock(parsed.clock),
     view: migrateView(parsed.view),
   };
 }
