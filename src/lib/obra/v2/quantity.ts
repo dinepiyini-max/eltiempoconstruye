@@ -1,9 +1,17 @@
 /**
  * Quantity V2 — takeoff. Tablas propias. No lee STRUCTURE_DEF.
  */
-import type { Hueco, Measured, Muro } from "./geometry.ts";
-import { huecoAlto, muroLargo } from "./geometry.ts";
-import { V2_MURO, V2_SECTIONS, type V2Kind } from "./tables.ts";
+import type { Columna, Hueco, Losa, Measured, Muro, Viga, Zapata } from "./geometry.ts";
+import { huecoAlto, losaArea, muroLargo, vigaLargo } from "./geometry.ts";
+import {
+  V2_COLUMNA,
+  V2_LOSA_PLANTA,
+  V2_MURO,
+  V2_SECTIONS,
+  V2_VIGA,
+  V2_ZAPATA,
+  type V2Kind,
+} from "./tables.ts";
 
 export type Takeoff = {
   kind: V2Kind;
@@ -90,8 +98,96 @@ export function takeoffMuros(
   }, empty);
 }
 
+export function takeoffColumna(c: Columna): { hormigonM3: number; aceroT: number } {
+  const hormigonM3 = Math.max(0, c.lado * c.lado * V2_COLUMNA.altoM);
+  return { hormigonM3, aceroT: hormigonM3 * V2_COLUMNA.steelTPerM3 };
+}
+
+export function takeoffZapata(z: Zapata): { hormigonM3: number; aceroT: number } {
+  const hormigonM3 = Math.max(0, z.lado * z.lado * V2_ZAPATA.cantoM);
+  return { hormigonM3, aceroT: hormigonM3 * V2_ZAPATA.steelTPerM3 };
+}
+
+export function takeoffViga(v: Viga): { largoM: number; hormigonM3: number; aceroT: number } {
+  const largoM = vigaLargo(v);
+  const hormigonM3 = Math.max(0, largoM * v.ancho * V2_VIGA.cantoM);
+  return { largoM, hormigonM3, aceroT: hormigonM3 * V2_VIGA.steelTPerM3 };
+}
+
+export function takeoffLosa(l: Losa): { areaM2: number; hormigonM3: number; aceroT: number } {
+  const areaM2 = Math.max(0, losaArea(l));
+  const hormigonM3 = areaM2 * V2_LOSA_PLANTA.espesorM;
+  return { areaM2, hormigonM3, aceroT: hormigonM3 * V2_LOSA_PLANTA.steelTPerM3 };
+}
+
+export type TakeoffScene = {
+  largoM: number;
+  areaM2: number;
+  areaNetaM2: number;
+  vanoM2: number;
+  blocksEst: number;
+  blocksGross: number;
+  blocksDelta: number;
+  hormigonM3: number;
+  aceroT: number;
+  losaM2: number;
+};
+
+export type SceneQty = {
+  walls: readonly Muro[];
+  openings?: readonly Hueco[];
+  columns?: readonly Columna[];
+  footings?: readonly Zapata[];
+  beams?: readonly Viga[];
+  slabs?: readonly Losa[];
+};
+
+export function takeoffScene(s: SceneQty): TakeoffScene {
+  const openings = s.openings ?? [];
+  const wallsNet = takeoffMuros(s.walls, V2_MURO.altoM, openings);
+  const wallsGross = takeoffMuros(s.walls, V2_MURO.altoM, []);
+  let hormigonM3 = wallsNet.hormigonM3;
+  let aceroT = wallsNet.aceroT;
+  let largoM = wallsNet.largoM;
+  let losaM2 = 0;
+  for (const c of s.columns ?? []) {
+    const q = takeoffColumna(c);
+    hormigonM3 += q.hormigonM3;
+    aceroT += q.aceroT;
+  }
+  for (const z of s.footings ?? []) {
+    const q = takeoffZapata(z);
+    hormigonM3 += q.hormigonM3;
+    aceroT += q.aceroT;
+  }
+  for (const v of s.beams ?? []) {
+    const q = takeoffViga(v);
+    largoM += q.largoM;
+    hormigonM3 += q.hormigonM3;
+    aceroT += q.aceroT;
+  }
+  for (const l of s.slabs ?? []) {
+    const q = takeoffLosa(l);
+    losaM2 += q.areaM2;
+    hormigonM3 += q.hormigonM3;
+    aceroT += q.aceroT;
+  }
+  return {
+    largoM,
+    areaM2: wallsNet.areaM2,
+    areaNetaM2: wallsNet.areaNetaM2,
+    vanoM2: wallsNet.vanoM2,
+    blocksEst: wallsNet.blocksEst,
+    blocksGross: wallsGross.blocksEst,
+    blocksDelta: wallsNet.blocksEst - wallsGross.blocksEst,
+    hormigonM3,
+    aceroT,
+    losaM2,
+  };
+}
+
 /** Puente al presupuesto V2 (qty × precio). Sin excavación: lote vacío. */
-export function takeoffAsCost(q: TakeoffMuro): Takeoff {
+export function takeoffAsCost(q: TakeoffMuro | TakeoffScene): Takeoff {
   return {
     kind: "contencion",
     largoM: q.largoM,

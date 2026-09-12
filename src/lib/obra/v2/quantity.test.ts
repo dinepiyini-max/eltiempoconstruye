@@ -1,8 +1,26 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { createHueco, createMuro, FIXTURE_RAMPA, measure } from "./geometry.ts";
-import { takeoff, takeoffMuro } from "./quantity.ts";
-import { V2_HUECO, V2_MURO, V2_SECTIONS } from "./tables.ts";
+import {
+  createColumna,
+  createHueco,
+  createLosa,
+  createMuro,
+  createViga,
+  createZapata,
+  FIXTURE_RAMPA,
+  measure,
+  rectPoly,
+} from "./geometry.ts";
+import {
+  takeoff,
+  takeoffColumna,
+  takeoffLosa,
+  takeoffMuro,
+  takeoffScene,
+  takeoffViga,
+  takeoffZapata,
+} from "./quantity.ts";
+import { V2_COLUMNA, V2_HUECO, V2_LOSA_PLANTA, V2_MURO, V2_SECTIONS, V2_VIGA, V2_ZAPATA } from "./tables.ts";
 
 describe("v2 quantity", () => {
   it("takeoff m³ y t son ≥ 0 y hormigón = largo × sección V2", () => {
@@ -49,5 +67,37 @@ describe("v2 quantity", () => {
     const both = takeoffMuro(muro, V2_MURO.altoM, [puerta, ventana]);
     assert.ok(both.areaNetaM2 < withDoor.areaNetaM2);
     assert.ok(both.blocksEst < withDoor.blocksEst);
+  });
+
+  it("columna/zapata/viga/losa suman hormigón y acero; vano resta blocks a la vista", () => {
+    const col = createColumna({ x: 1, y: 1 }, "C-001");
+    const qc = takeoffColumna(col);
+    assert.equal(qc.hormigonM3, V2_COLUMNA.ladoM * V2_COLUMNA.ladoM * V2_COLUMNA.altoM);
+    const zap = createZapata({ x: 1, y: 1 }, "Z-001");
+    const qz = takeoffZapata(zap);
+    assert.equal(qz.hormigonM3, V2_ZAPATA.ladoM * V2_ZAPATA.ladoM * V2_ZAPATA.cantoM);
+    const viga = createViga({ x: 0, y: 0 }, { x: 5, y: 0 }, "VG-001");
+    const qv = takeoffViga(viga);
+    assert.equal(qv.hormigonM3, 5 * V2_VIGA.anchoM * V2_VIGA.cantoM);
+    assert.ok(qv.aceroT > 0);
+    const losa = createLosa(rectPoly({ x: 0, y: 0 }, { x: 4, y: 3 }), "L-001");
+    const ql = takeoffLosa(losa);
+    assert.equal(ql.areaM2, 12);
+    assert.equal(ql.hormigonM3, 12 * V2_LOSA_PLANTA.espesorM);
+
+    const muro = createMuro({ x: 0, y: 0 }, { x: 8, y: 0 }, "M-001");
+    const puerta = createHueco("puerta", "M-001", 2, "P-001", V2_HUECO.puerta.anchoM);
+    const scene = takeoffScene({
+      walls: [muro],
+      openings: [puerta],
+      columns: [col],
+      footings: [zap],
+      beams: [viga],
+      slabs: [losa],
+    });
+    assert.ok(scene.blocksDelta < 0);
+    assert.ok(scene.hormigonM3 > qc.hormigonM3 + qz.hormigonM3);
+    assert.equal(scene.losaM2, 12);
+    assert.ok(scene.aceroT > 0);
   });
 });

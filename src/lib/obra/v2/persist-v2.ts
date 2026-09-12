@@ -3,8 +3,23 @@
  * Clave fija: obra.v2  (+ obra.v2.bak)
  * Nunca escribe obra.jefe ni obra.visita.
  */
-import { createHueco, createMuro, type Hueco, type HuecoKind, type Muro, type Pt } from "./geometry.ts";
-import { V2_HUECO, V2_MURO } from "./tables.ts";
+import {
+  createColumna,
+  createHueco,
+  createLosa,
+  createMuro,
+  createViga,
+  createZapata,
+  type Columna,
+  type Hueco,
+  type HuecoKind,
+  type Losa,
+  type Muro,
+  type Pt,
+  type Viga,
+  type Zapata,
+} from "./geometry.ts";
+import { V2_COLUMNA, V2_HUECO, V2_MURO, V2_VIGA, V2_ZAPATA } from "./tables.ts";
 
 export const V2_LIVE_KEY = "obra.v2";
 export const V2_BAK_KEY = "obra.v2.bak";
@@ -22,8 +37,16 @@ export type V2Document = {
   version: typeof V2_DOC_VERSION;
   walls: Muro[];
   openings: Hueco[];
+  columns: Columna[];
+  footings: Zapata[];
+  beams: Viga[];
+  slabs: Losa[];
   nextSeq: number;
   nextHuecoSeq: number;
+  nextColSeq: number;
+  nextZapSeq: number;
+  nextVigaSeq: number;
+  nextLosaSeq: number;
   view: V2View | null;
 };
 
@@ -54,8 +77,16 @@ export function emptyV2(): V2Document {
     version: V2_DOC_VERSION,
     walls: [],
     openings: [],
+    columns: [],
+    footings: [],
+    beams: [],
+    slabs: [],
     nextSeq: 1,
     nextHuecoSeq: 1,
+    nextColSeq: 1,
+    nextZapSeq: 1,
+    nextVigaSeq: 1,
+    nextLosaSeq: 1,
     view: null,
   };
 }
@@ -66,8 +97,16 @@ export function snapshotV2(doc: V2Document): V2Document {
     version: V2_DOC_VERSION,
     walls: doc.walls.map((m) => createMuro(m.a, m.b, m.id, m.espesor)),
     openings: doc.openings.map((h) => createHueco(h.kind, h.wallId, h.alongM, h.id, h.ancho)),
+    columns: doc.columns.map((c) => createColumna(c.c, c.id, c.lado)),
+    footings: doc.footings.map((z) => createZapata(z.c, z.id, z.lado, z.columnId)),
+    beams: doc.beams.map((v) => createViga(v.a, v.b, v.id, v.ancho)),
+    slabs: doc.slabs.map((l) => createLosa(l.poly, l.id)),
     nextSeq: doc.nextSeq,
     nextHuecoSeq: doc.nextHuecoSeq,
+    nextColSeq: doc.nextColSeq,
+    nextZapSeq: doc.nextZapSeq,
+    nextVigaSeq: doc.nextVigaSeq,
+    nextLosaSeq: doc.nextLosaSeq,
     view: doc.view ? { panX: doc.view.panX, panY: doc.view.panY, ppm: doc.view.ppm } : null,
   };
 }
@@ -119,6 +158,69 @@ function migrateOpenings(raw: unknown, walls: readonly Muro[]): Hueco[] {
   return out;
 }
 
+function migrateSquares(
+  raw: unknown,
+  prefix: string,
+  defaultLado: number,
+): { id: string; c: Pt; lado: number; columnId: string | null }[] {
+  if (!Array.isArray(raw)) return [];
+  const out: { id: string; c: Pt; lado: number; columnId: string | null }[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    if (!isObject(item)) continue;
+    const c = pt(item.c);
+    if (!c) continue;
+    const id =
+      typeof item.id === "string" && item.id ? item.id : `${prefix}-${String(out.length + 1).padStart(3, "0")}`;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const lado = Math.max(0.1, num(item.lado, defaultLado));
+    const columnId = typeof item.columnId === "string" && item.columnId ? item.columnId : null;
+    out.push({ id, c, lado, columnId });
+  }
+  return out;
+}
+
+function migrateBeams(raw: unknown): Viga[] {
+  if (!Array.isArray(raw)) return [];
+  const out: Viga[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    if (!isObject(item)) continue;
+    const a = pt(item.a);
+    const b = pt(item.b);
+    if (!a || !b) continue;
+    const id = typeof item.id === "string" && item.id ? item.id : `VG-${String(out.length + 1).padStart(3, "0")}`;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const ancho = Math.max(0.1, num(item.ancho, V2_VIGA.anchoM));
+    out.push(createViga(a, b, id, ancho));
+  }
+  return out;
+}
+
+function migrateSlabs(raw: unknown): Losa[] {
+  if (!Array.isArray(raw)) return [];
+  const out: Losa[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    if (!isObject(item)) continue;
+    const rawPoly = item.poly;
+    if (!Array.isArray(rawPoly)) continue;
+    const poly: Pt[] = [];
+    for (const p of rawPoly) {
+      const q = pt(p);
+      if (q) poly.push(q);
+    }
+    if (poly.length < 3) continue;
+    const id = typeof item.id === "string" && item.id ? item.id : `L-${String(out.length + 1).padStart(3, "0")}`;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push(createLosa(poly, id));
+  }
+  return out;
+}
+
 function migrateView(raw: unknown): V2View | null {
   if (!isObject(raw)) return null;
   const ppm = num(raw.ppm, 0);
@@ -141,23 +243,53 @@ export function hydrateV2(parsed: unknown): V2Document | null {
   if (parsed.version !== V2_DOC_VERSION) return null;
   const walls = migrateWalls(parsed.walls);
   const openings = migrateOpenings(parsed.openings, walls);
-  const nextSeq = seqFromIds(
-    walls.map((w) => w.id),
-    /^M-/,
-    num(parsed.nextSeq, 1),
+  const columns = migrateSquares(parsed.columns, "C", V2_COLUMNA.ladoM).map((c) =>
+    createColumna(c.c, c.id, c.lado),
   );
-  const nextHuecoSeq = seqFromIds(
-    openings.map((h) => h.id),
-    /^[PV]-/,
-    num(parsed.nextHuecoSeq, 1),
+  const footings = migrateSquares(parsed.footings, "Z", V2_ZAPATA.ladoM).map((z) =>
+    createZapata(z.c, z.id, z.lado, z.columnId),
   );
+  const beams = migrateBeams(parsed.beams);
+  const slabs = migrateSlabs(parsed.slabs);
   return {
     product: V2_PRODUCT,
     version: V2_DOC_VERSION,
     walls,
     openings,
-    nextSeq,
-    nextHuecoSeq,
+    columns,
+    footings,
+    beams,
+    slabs,
+    nextSeq: seqFromIds(
+      walls.map((w) => w.id),
+      /^M-/,
+      num(parsed.nextSeq, 1),
+    ),
+    nextHuecoSeq: seqFromIds(
+      openings.map((h) => h.id),
+      /^[PV]-/,
+      num(parsed.nextHuecoSeq, 1),
+    ),
+    nextColSeq: seqFromIds(
+      columns.map((c) => c.id),
+      /^C-/,
+      num(parsed.nextColSeq, 1),
+    ),
+    nextZapSeq: seqFromIds(
+      footings.map((z) => z.id),
+      /^Z-/,
+      num(parsed.nextZapSeq, 1),
+    ),
+    nextVigaSeq: seqFromIds(
+      beams.map((v) => v.id),
+      /^VG-/,
+      num(parsed.nextVigaSeq, 1),
+    ),
+    nextLosaSeq: seqFromIds(
+      slabs.map((l) => l.id),
+      /^L-/,
+      num(parsed.nextLosaSeq, 1),
+    ),
     view: migrateView(parsed.view),
   };
 }

@@ -1,11 +1,12 @@
 import { useEffect, useRef } from "react";
-import { drawNueva, hitTestHuecos, hitTestWalls, paletteFrom, toWorld, type HuecoPreview } from "@/lib/obra/v2/draw-v2";
+import { drawNueva, hitTestAll, hitTestWalls, paletteFrom, toWorld, type HuecoPreview } from "@/lib/obra/v2/draw-v2";
 import {
+  alongMuro,
   clampHuecoAlong,
   huecoAnchoDefault,
-  alongMuro,
   lengthMeters,
   muroLargo,
+  rectPoly,
   type HuecoKind,
   type Pt,
 } from "@/lib/obra/v2/geometry";
@@ -17,10 +18,12 @@ export function NuevaCanvas() {
   const ref = useRef<HTMLCanvasElement>(null);
   const pointers = useRef(new Map<number, Pt>());
   const pinch = useRef<{ dist: number; center: Pt } | null>(null);
-  const down = useRef<{ screen: Pt; moved: boolean; pan: boolean; started: boolean } | null>(null);
+  const down = useRef<{ screen: Pt; moved: boolean; pan: boolean; started: boolean; origin: Pt | null } | null>(null);
   const space = useRef(false);
   const fitted = useRef(false);
   const hover = useRef<HuecoPreview | null>(null);
+  const losaCursor = useRef<Pt | null>(null);
+  const rectPreview = useRef<{ a: Pt; b: Pt } | null>(null);
 
   useEffect(() => {
     const canvas = ref.current;
@@ -65,15 +68,22 @@ export function NuevaCanvas() {
         {
           walls: st.walls,
           openings: st.openings,
+          columns: st.columns,
+          footings: st.footings,
+          beams: st.beams,
+          slabs: st.slabs,
           selectedId: st.selectedId,
           draft: st.draft,
+          polyDraft: st.polyDraft,
+          rectPreview: rectPreview.current,
           view: st.view,
           hover: hover.current,
+          cursor: losaCursor.current,
         },
         pal,
       );
       canvas.style.cursor =
-        st.tool === "muro" || st.tool === "puerta" || st.tool === "ventana" ? "crosshair" : "default";
+        st.tool === "seleccionar" ? "default" : "crosshair";
     };
     raf = requestAnimationFrame(loop);
 
@@ -104,6 +114,8 @@ export function NuevaCanvas() {
       hover.current = { kind, wallId, alongM: along, ancho };
     };
 
+    const closeM = (ppm: number) => Math.max(0.4, 16 / ppm);
+
     const onDown = (e: PointerEvent) => {
       if (e.button === 2) return;
       try {
@@ -125,26 +137,62 @@ export function NuevaCanvas() {
         return;
       }
       const pan = space.current || e.button === 1 || e.altKey;
-      down.current = { screen, moved: false, pan, started: false };
+      const world = worldOf(screen);
+      down.current = { screen, moved: false, pan, started: false, origin: world };
       if (pan) return;
       const st = useNueva.getState();
       if (st.tool === "seleccionar") {
-        const world = worldOf(screen);
-        const hid = hitTestHuecos(world, st.walls, st.openings, st.view.ppm);
-        st.select(hid ?? hitTestWalls(world, st.walls, st.view.ppm));
+        st.select(
+          hitTestAll(
+            world,
+            {
+              walls: st.walls,
+              openings: st.openings,
+              columns: st.columns,
+              footings: st.footings,
+              beams: st.beams,
+              slabs: st.slabs,
+            },
+            st.view.ppm,
+          ),
+        );
         return;
       }
       if (st.tool === "puerta" || st.tool === "ventana") {
-        st.placeHueco(st.tool, worldOf(screen));
+        st.placeHueco(st.tool, world);
         hover.current = null;
         return;
       }
+      if (st.tool === "columna") {
+        st.commitColumna(world);
+        return;
+      }
+      if (st.tool === "zapata") {
+        st.commitZapata(world);
+        return;
+      }
+      if (st.tool === "losa") {
+        const first = st.polyDraft[0];
+        if (first && st.polyDraft.length >= 3 && lengthMeters(world, first) <= closeM(st.view.ppm)) {
+          st.commitLosa(st.polyDraft);
+          losaCursor.current = null;
+          return;
+        }
+        if (st.polyDraft.length) {
+          st.setPolyDraft([...st.polyDraft, world]);
+          return;
+        }
+        st.setPolyDraft([world]);
+        down.current.started = true;
+        return;
+      }
+      if (st.tool !== "muro" && st.tool !== "viga") return;
       if (!st.draft) {
-        const s = st.snap(worldOf(screen), null);
+        const s = st.snap(world, null);
         st.setDraft({ a: s.point, b: s.point, kind: s.kind });
         down.current.started = true;
       } else {
-        const s = st.snap(worldOf(screen), st.draft.a);
+        const s = st.snap(world, st.draft.a);
         st.setDraft({ a: st.draft.a, b: s.point, kind: s.kind });
       }
     };
@@ -175,13 +223,23 @@ export function NuevaCanvas() {
           down.current.moved = true;
         }
       }
+      const world = worldOf(screen);
       if (st.tool === "puerta" || st.tool === "ventana") {
-        if (!down.current) previewHueco(st.tool, worldOf(screen));
+        if (!down.current) previewHueco(st.tool, world);
         return;
       }
       hover.current = null;
-      if (st.tool !== "muro" || !st.draft) return;
-      const s = st.snap(worldOf(screen), st.draft.a);
+      if (st.tool === "losa") {
+        losaCursor.current = world;
+        if (down.current?.started && down.current.moved && down.current.origin) {
+          rectPreview.current = { a: down.current.origin, b: world };
+        }
+        return;
+      }
+      losaCursor.current = null;
+      rectPreview.current = null;
+      if ((st.tool !== "muro" && st.tool !== "viga") || !st.draft) return;
+      const s = st.snap(world, st.draft.a);
       st.setDraft({ a: st.draft.a, b: s.point, kind: s.kind });
     };
 
@@ -191,11 +249,25 @@ export function NuevaCanvas() {
       const st = useNueva.getState();
       const d = down.current;
       down.current = null;
-      if (!d || d.pan || st.tool !== "muro" || !st.draft) return;
+      if (!d || d.pan) {
+        rectPreview.current = null;
+        return;
+      }
+      if (st.tool === "losa") {
+        if (d.moved && d.started && d.origin) {
+          const poly = rectPoly(d.origin, worldOf(pos(e)));
+          st.commitLosa(poly);
+        }
+        rectPreview.current = null;
+        return;
+      }
+      if ((st.tool !== "muro" && st.tool !== "viga") || !st.draft) return;
       const s = st.snap(worldOf(pos(e)), st.draft.a);
       if (d.moved || !d.started) {
-        if (lengthMeters(st.draft.a, s.point) >= 0.3) st.commitMuro(st.draft.a, s.point);
-        else if (!d.started) st.setDraft(null);
+        if (lengthMeters(st.draft.a, s.point) >= 0.3) {
+          if (st.tool === "viga") st.commitViga(st.draft.a, s.point);
+          else st.commitMuro(st.draft.a, s.point);
+        } else if (!d.started) st.setDraft(null);
       }
     };
 
@@ -211,6 +283,7 @@ export function NuevaCanvas() {
 
     const onLeave = () => {
       hover.current = null;
+      losaCursor.current = null;
     };
 
     canvas.addEventListener("pointerdown", onDown);
@@ -244,7 +317,7 @@ export function NuevaCanvas() {
       ref={ref}
       className="block h-full w-full touch-none"
       data-obra-canvas="nueva"
-      aria-label="Lámina de muros"
+      aria-label="Lámina de nueva obra"
     />
   );
 }

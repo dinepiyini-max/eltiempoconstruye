@@ -4,16 +4,28 @@
 import {
   cornersOf,
   distToSegment,
+  formatM2,
   formatMeters,
   huecoEnds,
+  hitSquare,
+  losaArea,
   muroDir,
   muroLargo,
   muroParts,
+  pointInPoly,
+  polygonCentroid,
+  rectPoly,
+  squarePoly,
   thickPoly,
+  vigaLargo,
+  type Columna,
   type Hueco,
+  type Losa,
   type Muro,
   type Pt,
   type SnapKind,
+  type Viga,
+  type Zapata,
 } from "./geometry.ts";
 import { V2_SHEET } from "./tables.ts";
 import type { V2View } from "./persist-v2.ts";
@@ -73,13 +85,20 @@ export type HuecoPreview = Pick<Hueco, "kind" | "wallId" | "alongM" | "ancho">;
 export type DrawNuevaInput = {
   walls: readonly Muro[];
   openings: readonly Hueco[];
+  columns?: readonly Columna[];
+  footings?: readonly Zapata[];
+  beams?: readonly Viga[];
+  slabs?: readonly Losa[];
   selectedId: string | null;
   draft: Draft | null;
+  polyDraft?: readonly Pt[];
+  rectPreview?: { a: Pt; b: Pt } | null;
   view: V2View;
   hover?: HuecoPreview | null;
+  cursor?: Pt | null;
 };
 
-function strokePoly(ctx: CanvasRenderingContext2D, pts: Pt[], view: V2View, closed: boolean) {
+function strokePoly(ctx: CanvasRenderingContext2D, pts: readonly Pt[], view: V2View, closed: boolean) {
   if (pts.length < 2) return;
   const s0 = toScreen(view, pts[0]!);
   ctx.beginPath();
@@ -330,6 +349,135 @@ function drawWall(
   ctx.restore();
 }
 
+function drawSquare(
+  ctx: CanvasRenderingContext2D,
+  c: Pt,
+  lado: number,
+  view: V2View,
+  pal: Palette,
+  selected: boolean,
+  fill: boolean,
+) {
+  const poly = squarePoly(c, lado);
+  strokePoly(ctx, poly, view, true);
+  ctx.save();
+  ctx.fillStyle = selected ? pal.cyan : pal.graphite;
+  ctx.globalAlpha = fill ? (selected ? 0.4 : 0.28) : selected ? 0.12 : 0.06;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = selected ? pal.cyan : pal.ink;
+  ctx.lineWidth = selected ? 2 : fill ? 1.4 : 1.1;
+  if (!fill) ctx.setLineDash([5, 3]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+function drawVigaBeam(
+  ctx: CanvasRenderingContext2D,
+  v: Viga,
+  view: V2View,
+  pal: Palette,
+  selected: boolean,
+) {
+  drawBody(ctx, v.a, v.b, v.ancho, view, pal, selected);
+  if (selected) drawCota(ctx, v.a, v.b, view, pal, formatMeters(vigaLargo(v)), 1);
+}
+
+function drawSlab(
+  ctx: CanvasRenderingContext2D,
+  l: Losa,
+  view: V2View,
+  pal: Palette,
+  selected: boolean,
+) {
+  if (l.poly.length < 3) return;
+  strokePoly(ctx, l.poly, view, true);
+  ctx.save();
+  ctx.fillStyle = selected ? pal.cyan : pal.graphite;
+  ctx.globalAlpha = selected ? 0.22 : 0.1;
+  ctx.fill();
+  ctx.clip();
+  const screens = l.poly.map((p) => toScreen(view, p));
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const s of screens) {
+    minX = Math.min(minX, s.x);
+    minY = Math.min(minY, s.y);
+    maxX = Math.max(maxX, s.x);
+    maxY = Math.max(maxY, s.y);
+  }
+  ctx.strokeStyle = pal.cyan;
+  ctx.globalAlpha = 0.35;
+  ctx.lineWidth = 1;
+  const step = 10;
+  for (let x = minX - (maxY - minY); x < maxX + (maxY - minY); x += step) {
+    ctx.beginPath();
+    ctx.moveTo(x, minY);
+    ctx.lineTo(x + (maxY - minY), maxY);
+    ctx.stroke();
+  }
+  ctx.restore();
+  ctx.save();
+  ctx.strokeStyle = selected ? pal.cyan : pal.ink;
+  ctx.lineWidth = selected ? 2 : 1.2;
+  strokePoly(ctx, l.poly, view, true);
+  ctx.stroke();
+  if (selected) {
+    const mid = polygonCentroid(l.poly);
+    const s = toScreen(view, mid);
+    const label = formatM2(losaArea(l));
+    ctx.font = "600 12px 'IBM Plex Sans Condensed', sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const tw = ctx.measureText(label).width + 8;
+    ctx.fillStyle = pal.paper;
+    ctx.fillRect(s.x - tw / 2, s.y - 8, tw, 16);
+    ctx.fillStyle = pal.ink;
+    ctx.fillText(label, s.x, s.y);
+  }
+  ctx.restore();
+}
+
+function drawPolyDraft(
+  ctx: CanvasRenderingContext2D,
+  pts: readonly Pt[],
+  cursor: Pt | null,
+  view: V2View,
+  pal: Palette,
+) {
+  if (!pts.length) return;
+  const drawPts = cursor ? pts.concat([cursor]) : pts;
+  ctx.save();
+  ctx.strokeStyle = pal.cyan;
+  ctx.setLineDash([6, 4]);
+  ctx.lineWidth = 1.6;
+  strokePoly(ctx, drawPts, view, false);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = pal.cyan;
+  for (const p of pts) {
+    const s = toScreen(view, p);
+    ctx.fillRect(s.x - 3, s.y - 3, 6, 6);
+  }
+  ctx.restore();
+  if (drawPts.length >= 3) {
+    const area = Math.abs(
+      drawPts.reduce((acc, p, i) => {
+        const n = drawPts[(i + 1) % drawPts.length]!;
+        return acc + p.x * n.y - n.x * p.y;
+      }, 0) / 2,
+    );
+    if (area > 0.05) {
+      const a = pts[0]!;
+      const b = cursor ?? pts[pts.length - 1]!;
+      drawCota(ctx, a, b, view, pal, formatM2(area), 1);
+    }
+  }
+}
+
 function drawScale(ctx: CanvasRenderingContext2D, w: number, h: number, view: V2View, pal: Palette) {
   const meters = view.ppm >= 28 ? 5 : 10;
   const x = 18;
@@ -353,7 +501,7 @@ function drawScale(ctx: CanvasRenderingContext2D, w: number, h: number, view: V2
   ctx.fillText(`${meters}.00 m`, x, y - 8);
   ctx.textAlign = "right";
   ctx.globalAlpha = 0.7;
-  ctx.fillText("NUEVA OBRA · LÁMINA 01 · MUROS", w - 16, 22);
+  ctx.fillText("NUEVA OBRA · LÁMINA 01", w - 16, 22);
   ctx.restore();
 }
 
@@ -367,15 +515,60 @@ export function drawNueva(
   ctx.fillStyle = pal.paper;
   ctx.fillRect(0, 0, w, h);
   drawGrid(ctx, w, h, input.view, pal);
+  const columns = input.columns ?? [];
+  const footings = input.footings ?? [];
+  const beams = input.beams ?? [];
+  const slabs = input.slabs ?? [];
   const selectedHueco = input.openings.find((o) => o.id === input.selectedId) ?? null;
+
+  for (const l of slabs) {
+    drawSlab(ctx, l, input.view, pal, l.id === input.selectedId);
+  }
+  for (const z of footings) {
+    drawSquare(ctx, z.c, z.lado, input.view, pal, z.id === input.selectedId, false);
+  }
   for (const m of input.walls) {
     const self = m.id === input.selectedId;
     const parent = selectedHueco?.wallId === m.id;
     drawWall(ctx, m, input.openings, input.view, pal, self || parent, selectedHueco?.id ?? null, self);
   }
+  for (const v of beams) {
+    drawVigaBeam(ctx, v, input.view, pal, v.id === input.selectedId);
+  }
+  for (const c of columns) {
+    drawSquare(ctx, c.c, c.lado, input.view, pal, c.id === input.selectedId, true);
+  }
   if (input.hover) {
     const m = input.walls.find((w) => w.id === input.hover!.wallId);
     if (m) drawHueco(ctx, m, input.hover, input.view, pal, true, true);
+  }
+  if (input.rectPreview) {
+    const poly = rectPoly(input.rectPreview.a, input.rectPreview.b);
+    ctx.save();
+    ctx.strokeStyle = pal.cyan;
+    ctx.setLineDash([6, 4]);
+    ctx.lineWidth = 1.6;
+    strokePoly(ctx, poly, input.view, true);
+    ctx.stroke();
+    ctx.fillStyle = pal.cyan;
+    ctx.globalAlpha = 0.1;
+    ctx.fill();
+    ctx.restore();
+    const area =
+      Math.abs(input.rectPreview.b.x - input.rectPreview.a.x) * Math.abs(input.rectPreview.b.y - input.rectPreview.a.y);
+    if (area > 0.05) {
+      drawCota(
+        ctx,
+        input.rectPreview.a,
+        { x: input.rectPreview.b.x, y: input.rectPreview.a.y },
+        input.view,
+        pal,
+        formatM2(area),
+        1,
+      );
+    }
+  } else if (input.polyDraft && input.polyDraft.length) {
+    drawPolyDraft(ctx, input.polyDraft, input.cursor ?? null, input.view, pal);
   }
   if (input.draft) {
     const { a, b } = input.draft;
@@ -434,4 +627,65 @@ export function hitTestHuecos(
     if (d <= m.espesor / 2 + slack && (!best || d < best.d)) best = { id: h.id, d };
   }
   return best?.id ?? null;
+}
+
+export function hitTestColumns(world: Pt, columns: readonly Columna[], ppm: number): string | null {
+  const slack = Math.max(0.08, 10 / ppm);
+  let best: { id: string; d: number } | null = null;
+  for (const c of columns) {
+    if (!hitSquare(world, c.c, c.lado, slack)) continue;
+    const d = Math.hypot(world.x - c.c.x, world.y - c.c.y);
+    if (!best || d < best.d) best = { id: c.id, d };
+  }
+  return best?.id ?? null;
+}
+
+export function hitTestFootings(world: Pt, footings: readonly Zapata[], ppm: number): string | null {
+  const slack = Math.max(0.08, 10 / ppm);
+  let best: { id: string; d: number } | null = null;
+  for (const z of footings) {
+    if (!hitSquare(world, z.c, z.lado, slack)) continue;
+    const d = Math.hypot(world.x - z.c.x, world.y - z.c.y);
+    if (!best || d < best.d) best = { id: z.id, d };
+  }
+  return best?.id ?? null;
+}
+
+export function hitTestBeams(world: Pt, beams: readonly Viga[], ppm: number): string | null {
+  const slack = Math.max(0.12, 14 / ppm);
+  let best: { id: string; d: number } | null = null;
+  for (const v of beams) {
+    const d = distToSegment(world, v.a, v.b);
+    if (d <= v.ancho / 2 + slack && (!best || d < best.d)) best = { id: v.id, d };
+  }
+  return best?.id ?? null;
+}
+
+export function hitTestSlabs(world: Pt, slabs: readonly Losa[]): string | null {
+  for (let i = slabs.length - 1; i >= 0; i--) {
+    const l = slabs[i]!;
+    if (pointInPoly(world, l.poly)) return l.id;
+  }
+  return null;
+}
+
+export function hitTestAll(
+  world: Pt,
+  scene: {
+    walls: readonly Muro[];
+    openings: readonly Hueco[];
+    columns: readonly Columna[];
+    footings: readonly Zapata[];
+    beams: readonly Viga[];
+  } & { slabs: readonly Losa[] },
+  ppm: number,
+): string | null {
+  return (
+    hitTestHuecos(world, scene.walls, scene.openings, ppm) ??
+    hitTestColumns(world, scene.columns, ppm) ??
+    hitTestBeams(world, scene.beams, ppm) ??
+    hitTestWalls(world, scene.walls, ppm) ??
+    hitTestFootings(world, scene.footings, ppm) ??
+    hitTestSlabs(world, scene.slabs)
+  );
 }

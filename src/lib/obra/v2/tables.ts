@@ -42,3 +42,30 @@ export const V2_HUECO = {
   ventana: { anchoM: 1.2, altoM: 1.2 },
   minJambaM: 0.08,
 } as const;
+
+/** FASE F — estructura mínima. Precios de juego, no ERP. */
+export const V2_COLUMNA = {
+  ladoM: 0.3,
+  altoM: 2.4,
+  steelTPerM3: 0.09,
+} as const;
+
+export const V2_ZAPATA = {
+  ladoM: 0.8,
+  cantoM: 0.4,
+  snapM: 0.5,
+  steelTPerM3: 0.04,
+} as const;
+
+export const V2_VIGA = {
+  anchoM: 0.2,
+  cantoM: 0.3,
+  minLargoM: 0.3,
+  steelTPerM3: 0.12,
+} as const;
+
+export const V2_LOSA_PLANTA = {
+  espesorM: 0.12,
+  minAreaM2: 0.4,
+  steelTPerM3: 0.1,
+} as const;

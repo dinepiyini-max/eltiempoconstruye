@@ -2,9 +2,9 @@ import { useEffect } from "react";
 import { ModeTabs } from "@/components/obra/ModeTabs";
 import { formatInt } from "@/lib/obra/format";
 import { presupuesto } from "@/lib/obra/v2/cost";
-import { formatM2, formatMeters, muroLargo } from "@/lib/obra/v2/geometry";
-import { takeoffAsCost, takeoffMuro, takeoffMuros } from "@/lib/obra/v2/quantity";
-import { useNueva } from "@/lib/obra/v2/store";
+import { formatM2, formatMeters, muroLargo, polygonArea, vigaLargo } from "@/lib/obra/v2/geometry";
+import { takeoffAsCost, takeoffColumna, takeoffLosa, takeoffMuro, takeoffScene, takeoffViga, takeoffZapata } from "@/lib/obra/v2/quantity";
+import { useNueva, type V2Tool } from "@/lib/obra/v2/store";
 import { NuevaCanvas } from "./NuevaCanvas";
 
 const SEL_HINT = "SEL · elegir un muro";
@@ -17,13 +17,19 @@ export function NuevaObra() {
   const selectedId = useNueva((s) => s.selectedId);
   const walls = useNueva((s) => s.walls);
   const openings = useNueva((s) => s.openings);
+  const columns = useNueva((s) => s.columns);
+  const footings = useNueva((s) => s.footings);
+  const beams = useNueva((s) => s.beams);
+  const slabs = useNueva((s) => s.slabs);
   const draft = useNueva((s) => s.draft);
+  const polyDraft = useNueva((s) => s.polyDraft);
   const canUndo = useNueva((s) => s.canUndo);
   const canRedo = useNueva((s) => s.canRedo);
   const undo = useNueva((s) => s.undo);
   const redo = useNueva((s) => s.redo);
   const deleteSelected = useNueva((s) => s.deleteSelected);
   const setDraft = useNueva((s) => s.setDraft);
+  const setPolyDraft = useNueva((s) => s.setPolyDraft);
   const zoom = useNueva((s) => s.zoom);
   const hydrated = useNueva((s) => s.hydrated);
 
@@ -52,6 +58,7 @@ export function NuevaObra() {
       }
       if (e.key === "Escape") {
         setDraft(null);
+        setPolyDraft([]);
         return;
       }
       if (e.key === "Delete" || e.key === "Backspace") {
@@ -59,12 +66,29 @@ export function NuevaObra() {
         deleteSelected();
         return;
       }
+      if (mod) return;
       if (e.key === "+" || e.key === "=") zoom({ x: 200, y: 160 }, 1.15);
       if (e.key === "-" || e.key === "_") zoom({ x: 200, y: 160 }, 0.87);
-      if (e.key === "m" || e.key === "M" || e.key === "1") setTool("muro");
-      if (e.key === "s" || e.key === "S" || e.key === "2") setTool("seleccionar");
-      if (e.key === "p" || e.key === "P" || e.key === "3") setTool("puerta");
-      if (e.key === "v" || e.key === "V" || e.key === "4") setTool("ventana");
+      const keys: Record<string, V2Tool> = {
+        m: "muro",
+        1: "muro",
+        s: "seleccionar",
+        2: "seleccionar",
+        p: "puerta",
+        3: "puerta",
+        v: "ventana",
+        4: "ventana",
+        c: "columna",
+        5: "columna",
+        z: "zapata",
+        6: "zapata",
+        g: "viga",
+        7: "viga",
+        l: "losa",
+        8: "losa",
+      };
+      const next = keys[e.key.toLowerCase()];
+      if (next) setTool(next);
     };
     document.addEventListener("visibilitychange", onHide);
     window.addEventListener("pagehide", flush);
@@ -74,21 +98,34 @@ export function NuevaObra() {
       window.removeEventListener("pagehide", flush);
       window.removeEventListener("keydown", onKey);
     };
-  }, [flush, undo, redo, deleteSelected, setDraft, zoom, setTool]);
+  }, [flush, undo, redo, deleteSelected, setDraft, setPolyDraft, zoom, setTool]);
 
   const selectedHueco = openings.find((h) => h.id === selectedId) ?? null;
   const selectedWall =
     walls.find((w) => w.id === selectedId) ??
     (selectedHueco ? (walls.find((w) => w.id === selectedHueco.wallId) ?? null) : null);
-  const qty = selectedWall ? takeoffMuro(selectedWall, undefined, openings) : takeoffMuros(walls, undefined, openings);
-  const cost = presupuesto(takeoffAsCost(qty));
+  const selectedCol = columns.find((c) => c.id === selectedId) ?? null;
+  const selectedZap = footings.find((z) => z.id === selectedId) ?? null;
+  const selectedViga = beams.find((v) => v.id === selectedId) ?? null;
+  const selectedLosa = slabs.find((l) => l.id === selectedId) ?? null;
+
+  const sceneQty = takeoffScene({ walls, openings, columns, footings, beams, slabs });
+  const wallQty = selectedWall ? takeoffMuro(selectedWall, undefined, openings) : null;
+  const cost = presupuesto(takeoffAsCost(sceneQty));
+
   const cota = draft
     ? formatMeters(muroLargo(draft))
-    : selectedHueco
-      ? formatMeters(selectedHueco.ancho)
-      : selectedWall
-        ? formatMeters(muroLargo(selectedWall))
-        : null;
+    : polyDraft.length >= 3
+      ? formatM2(polygonArea(polyDraft))
+      : selectedHueco
+        ? formatMeters(selectedHueco.ancho)
+        : selectedWall
+          ? formatMeters(muroLargo(selectedWall))
+          : selectedViga
+            ? formatMeters(vigaLargo(selectedViga))
+            : selectedLosa
+              ? formatM2(polygonArea(selectedLosa.poly))
+              : null;
   const snapLabel =
     draft?.kind === "horizontal" ? "HORZ" : draft?.kind === "vertical" ? "VERT" : draft?.kind === "esquina" ? "ESQ" : null;
 
@@ -99,15 +136,61 @@ export function NuevaObra() {
         ? "Clic en un muro para la puerta."
         : tool === "ventana"
           ? "Clic en un muro para la ventana."
-          : "Clic, clic — o arrastra. Snap: horz / vert / esquina.";
+          : tool === "columna"
+            ? "Clic — columna 0.30 × 0.30 m."
+            : tool === "zapata"
+              ? "Clic — zapata 0.80 × 0.80 m. Cerca de columna, queda debajo."
+              : tool === "viga"
+                ? "Clic, clic o arrastra. Snap horz / vert."
+                : tool === "losa"
+                  ? "Arrastra un rectángulo, o 3+ clics y cierra en el primero."
+                  : "Clic, clic — o arrastra. Snap: horz / vert / esquina.";
 
   const panelTitle = selectedHueco
     ? selectedHueco.id
     : selectedWall
       ? selectedWall.id
-      : walls.length
-        ? "MUROS"
-        : "MURO";
+      : selectedCol
+        ? selectedCol.id
+        : selectedZap
+          ? selectedZap.id
+          : selectedViga
+            ? selectedViga.id
+            : selectedLosa
+              ? selectedLosa.id
+              : walls.length || columns.length || footings.length || beams.length || slabs.length
+                ? "OBRA"
+                : "MURO";
+
+  const blocksNow = wallQty ? wallQty.blocksEst : sceneQty.blocksEst;
+  const blocksDelta = wallQty && selectedWall
+    ? wallQty.blocksEst - takeoffMuro(selectedWall, undefined, []).blocksEst
+    : sceneQty.blocksDelta;
+  const hormigon = selectedCol
+    ? takeoffColumna(selectedCol).hormigonM3
+    : selectedZap
+      ? takeoffZapata(selectedZap).hormigonM3
+      : selectedViga
+        ? takeoffViga(selectedViga).hormigonM3
+        : selectedLosa
+          ? takeoffLosa(selectedLosa).hormigonM3
+          : wallQty
+            ? wallQty.hormigonM3
+            : sceneQty.hormigonM3;
+  const acero = selectedCol
+    ? takeoffColumna(selectedCol).aceroT
+    : selectedZap
+      ? takeoffZapata(selectedZap).aceroT
+      : selectedViga
+        ? takeoffViga(selectedViga).aceroT
+        : selectedLosa
+          ? takeoffLosa(selectedLosa).aceroT
+          : wallQty
+            ? wallQty.aceroT
+            : sceneQty.aceroT;
+  const losaM2 = selectedLosa ? takeoffLosa(selectedLosa).areaM2 : sceneQty.losaM2;
+  const largo = selectedViga ? takeoffViga(selectedViga).largoM : wallQty ? wallQty.largoM : sceneQty.largoM;
+  const areaNeta = wallQty ? wallQty.areaNetaM2 : sceneQty.areaNetaM2;
 
   return (
     <div className="flex min-h-dvh flex-col overflow-hidden bg-paper text-ink" data-obra="nueva">
@@ -122,36 +205,24 @@ export function NuevaObra() {
               </span>
             </div>
             <p className="small-caps mt-0.5 text-[0.55rem] tracking-[0.12em] text-cyan">
-              Terreno vacío · muros medidos · no es el Valle del Yuna
+              Terreno vacío · estructura mínima · no es el Valle del Yuna
             </p>
             <p className="mt-0.5 max-w-xl font-serif text-sm italic text-ink-soft">
               El tiempo construye. Aquí se traza, se mide y se guarda.
             </p>
           </div>
         </div>
-        <div
-          data-tools
-          className="mt-2 flex flex-wrap items-center gap-x-1 gap-y-1 border-t border-rule/60 pt-2"
-        >
+        <div data-tools className="mt-2 flex flex-wrap items-center gap-x-1 gap-y-1 border-t border-rule/60 pt-2">
           <ToolBtn on={tool === "muro"} onClick={() => setTool("muro")} label="MURO" />
-          <ToolBtn
-            on={tool === "seleccionar"}
-            onClick={() => setTool("seleccionar")}
-            label="SEL · elegir un muro"
-            title={SEL_HINT}
-          />
-          <ToolBtn
-            on={tool === "puerta"}
-            onClick={() => setTool("puerta")}
-            label="PUERTA"
-            title="Clic en un muro"
-          />
-          <ToolBtn
-            on={tool === "ventana"}
-            onClick={() => setTool("ventana")}
-            label="VENTANA"
-            title="Clic en un muro"
-          />
+          <ToolBtn on={tool === "seleccionar"} onClick={() => setTool("seleccionar")} label="SEL · elegir un muro" title={SEL_HINT} />
+          <ToolBtn on={tool === "puerta"} onClick={() => setTool("puerta")} label="PUERTA" title="Clic en un muro" />
+          <ToolBtn on={tool === "ventana"} onClick={() => setTool("ventana")} label="VENTANA" title="Clic en un muro" />
+        </div>
+        <div data-tools-struct className="flex flex-wrap items-center gap-x-1 gap-y-1">
+          <ToolBtn on={tool === "columna"} onClick={() => setTool("columna")} label="COLUMNA" />
+          <ToolBtn on={tool === "zapata"} onClick={() => setTool("zapata")} label="ZAPATA" />
+          <ToolBtn on={tool === "viga"} onClick={() => setTool("viga")} label="VIGA" />
+          <ToolBtn on={tool === "losa"} onClick={() => setTool("losa")} label="LOSA" />
         </div>
         <div className="flex flex-wrap items-center gap-x-1 gap-y-1">
           <ToolBtn on={false} onClick={deleteSelected} label="BORRAR" disabled={!selectedId} />
@@ -175,17 +246,22 @@ export function NuevaObra() {
         <main className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
           {hydrated ? <NuevaCanvas /> : <div className="h-full w-full bg-paper" />}
         </main>
-        <aside className="max-h-[32vh] shrink-0 overflow-y-auto border-t border-rule/80 bg-paper px-4 py-3 md:max-h-none md:w-64 md:border-l md:border-t-0">
-          <p className="small-caps text-[0.55rem] text-cyan">Cantidad</p>
+        <aside className="max-h-[38vh] shrink-0 overflow-y-auto border-t border-rule/80 bg-paper px-4 py-3 md:max-h-none md:w-72 md:border-l md:border-t-0">
+          <p className="small-caps text-[0.62rem] text-cyan">Cantidad</p>
           <h2 className="font-serif text-2xl text-ink">{panelTitle}</h2>
-          <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm md:grid-cols-1">
-            <Qty k="Longitud" v={formatMeters(qty.largoM)} />
-            <Qty k="Área" v={formatM2(qty.areaNetaM2)} />
-            {qty.vanoM2 > 0 ? <Qty k="Vanos" v={formatM2(qty.vanoM2)} /> : null}
-            <Qty k="Blocks est." v={String(qty.blocksEst)} />
-            <Qty k="Hormigón" v={`${qty.hormigonM3.toFixed(2)} m³`} />
+          <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-4 md:grid-cols-1">
+            <QtyBig k="Longitud" v={formatMeters(largo)} />
+            <QtyBig k="Área neta" v={formatM2(areaNeta)} />
+            <QtyBig
+              k="Blocks"
+              v={String(blocksNow)}
+              sub={blocksDelta < 0 ? `−${-blocksDelta} blocks` : undefined}
+            />
+            <QtyBig k="Hormigón" v={`${hormigon.toFixed(2)} m³`} />
+            <QtyBig k="Acero est." v={`${acero.toFixed(2)} t`} />
+            {losaM2 > 0 ? <QtyBig k="Losa" v={formatM2(losaM2)} /> : null}
           </dl>
-          <p className="mt-3 small-caps text-[0.55rem] text-ink-soft">Est. · una línea</p>
+          <p className="mt-4 small-caps text-[0.55rem] text-ink-soft">Est. · una línea</p>
           <p className="font-sans text-sm tabular-nums text-ink" data-cost>
             {formatInt(cost.total)}
           </p>
@@ -214,7 +290,7 @@ function ToolBtn({
   return (
     <button
       type="button"
-      data-tool={label.toLowerCase()}
+      data-tool={label.split(" · ")[0]?.toLowerCase()}
       onClick={onClick}
       disabled={disabled}
       title={title}
@@ -227,11 +303,16 @@ function ToolBtn({
   );
 }
 
-function Qty({ k, v }: { k: string; v: string }) {
+function QtyBig({ k, v, sub }: { k: string; v: string; sub?: string }) {
   return (
     <div>
-      <dt className="small-caps text-[0.55rem] text-ink-soft">{k}</dt>
-      <dd className="tabular-nums text-ink">{v}</dd>
+      <dt className="small-caps text-[0.62rem] text-ink-soft">{k}</dt>
+      <dd className="font-sans text-3xl tabular-nums leading-none tracking-tight text-ink">{v}</dd>
+      {sub ? (
+        <p data-blocks-delta className="mt-1 text-base font-medium tabular-nums text-rust">
+          {sub}
+        </p>
+      ) : null}
     </div>
   );
 }

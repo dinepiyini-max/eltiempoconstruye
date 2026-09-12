@@ -4,7 +4,7 @@
  * FASE E: hueco (puerta/ventana) ligado a wallId + posición a lo largo.
  */
 import { dist, height, type Pt } from "../terrain.ts";
-import { V2_HUECO, V2_MURO, V2_SCALE_M_PER_UNIT } from "./tables.ts";
+import { V2_COLUMNA, V2_HUECO, V2_MURO, V2_SCALE_M_PER_UNIT, V2_VIGA, V2_ZAPATA } from "./tables.ts";
 
 export type { Pt };
 
@@ -377,4 +377,165 @@ export function placeHuecoOnMuro(
   const hueco = createHueco(kind, m.id, along, id, ancho);
   if (existing.some((o) => huecoOverlaps(o, hueco))) return null;
   return hueco;
+}
+
+/* ── FASE F: columna, zapata, viga, losa. Metros de lámina. ── */
+
+export type Columna = {
+  id: string;
+  c: Pt;
+  lado: number;
+};
+
+export type Zapata = {
+  id: string;
+  c: Pt;
+  lado: number;
+  columnId: string | null;
+};
+
+export type Viga = {
+  id: string;
+  a: Pt;
+  b: Pt;
+  ancho: number;
+};
+
+export type Losa = {
+  id: string;
+  poly: Pt[];
+};
+
+export function structId(prefix: string, seq: number): string {
+  return `${prefix}-${String(seq).padStart(3, "0")}`;
+}
+
+export function nextStructSeq(prefix: string, ids: readonly string[]): number {
+  const head = `${prefix}-`;
+  let n = 1;
+  for (const id of ids) {
+    if (!id.startsWith(head)) continue;
+    const num = Number(id.slice(head.length));
+    if (Number.isFinite(num)) n = Math.max(n, num + 1);
+  }
+  return n;
+}
+
+export function createColumna(c: Pt, id: string, lado: number = V2_COLUMNA.ladoM): Columna {
+  return { id, c: { x: c.x, y: c.y }, lado };
+}
+
+export function createZapata(
+  c: Pt,
+  id: string,
+  lado: number = V2_ZAPATA.ladoM,
+  columnId: string | null = null,
+): Zapata {
+  return { id, c: { x: c.x, y: c.y }, lado, columnId };
+}
+
+export function createViga(a: Pt, b: Pt, id: string, ancho: number = V2_VIGA.anchoM): Viga {
+  return { id, a: { x: a.x, y: a.y }, b: { x: b.x, y: b.y }, ancho };
+}
+
+export function createLosa(poly: readonly Pt[], id: string): Losa {
+  return { id, poly: poly.map((p) => ({ x: p.x, y: p.y })) };
+}
+
+export function squarePoly(c: Pt, lado: number): Pt[] {
+  const h = lado / 2;
+  return [
+    { x: c.x - h, y: c.y - h },
+    { x: c.x + h, y: c.y - h },
+    { x: c.x + h, y: c.y + h },
+    { x: c.x - h, y: c.y + h },
+  ];
+}
+
+export function rectPoly(a: Pt, b: Pt): Pt[] {
+  return [
+    { x: a.x, y: a.y },
+    { x: b.x, y: a.y },
+    { x: b.x, y: b.y },
+    { x: a.x, y: b.y },
+  ];
+}
+
+export function polygonArea(pts: readonly Pt[]): number {
+  if (pts.length < 3) return 0;
+  let a = 0;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const pi = pts[i]!;
+    const pj = pts[j]!;
+    a += pj.x * pi.y - pi.x * pj.y;
+  }
+  return Math.abs(a) / 2;
+}
+
+export function polygonCentroid(pts: readonly Pt[]): Pt {
+  if (!pts.length) return { x: 0, y: 0 };
+  let x = 0;
+  let y = 0;
+  for (const p of pts) {
+    x += p.x;
+    y += p.y;
+  }
+  return { x: x / pts.length, y: y / pts.length };
+}
+
+export function pointInPoly(p: Pt, pts: readonly Pt[]): boolean {
+  if (pts.length < 3) return false;
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const a = pts[i]!;
+    const b = pts[j]!;
+    const hit = a.y > p.y !== b.y > p.y && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y || 1e-12) + a.x;
+    if (hit) inside = !inside;
+  }
+  return inside;
+}
+
+export function hitSquare(p: Pt, c: Pt, lado: number, slack: number): boolean {
+  const h = lado / 2 + slack;
+  return Math.abs(p.x - c.x) <= h && Math.abs(p.y - c.y) <= h;
+}
+
+export function vigaLargo(v: Pick<Viga, "a" | "b">): number {
+  return lengthMeters(v.a, v.b);
+}
+
+export function losaArea(l: Pick<Losa, "poly">): number {
+  return polygonArea(l.poly);
+}
+
+export function nearestColumna(p: Pt, cols: readonly Columna[], maxM: number): Columna | null {
+  let best: Columna | null = null;
+  let bestD = maxM;
+  for (const c of cols) {
+    const d = dist(p, c.c);
+    if (d <= bestD) {
+      bestD = d;
+      best = c;
+    }
+  }
+  return best;
+}
+
+export function snapZapataCenter(p: Pt, cols: readonly Columna[], maxM: number): { c: Pt; columnId: string | null } {
+  const col = nearestColumna(p, cols, maxM);
+  if (!col) return { c: { x: p.x, y: p.y }, columnId: null };
+  return { c: { x: col.c.x, y: col.c.y }, columnId: col.id };
+}
+
+export function structureAnchors(
+  walls: readonly Muro[],
+  columns: readonly Columna[] = [],
+  beams: readonly Viga[] = [],
+): Pt[] {
+  const out = cornersOf(walls);
+  for (const c of columns) out.push(c.c);
+  for (const v of beams) {
+    out.push(v.a, v.b);
+  }
+  return out;
 }

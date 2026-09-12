@@ -5,25 +5,35 @@ import {
   FIXTURE_TRAZO,
   alongMuro,
   clampHuecoAlong,
+  createColumna,
   createHueco,
+  createLosa,
   createMuro,
+  createViga,
   cutFillProfile,
   formatMeters,
+  hitSquare,
   huecoAnchoDefault,
   huecoEnds,
   huecoId,
   huecoOverlaps,
   lengthMeters,
+  losaArea,
   measure,
   muroId,
   muroLargo,
   muroParts,
   muroPoly,
   placeHuecoOnMuro,
+  polygonArea,
   polylineLength,
   polylineLengthMeters,
+  rectPoly,
   sampleHeights,
   snapDraft,
+  snapZapataCenter,
+  structId,
+  vigaLargo,
 } from "./geometry.ts";
 import { V2_HUECO } from "./tables.ts";
 
@@ -123,5 +133,24 @@ describe("v2 geometry", () => {
     assert.equal(dup, null);
     assert.equal(huecoOverlaps(puerta, createHueco("ventana", "M-001", 4, "V-x", 1.2)), true);
     assert.ok(V2_HUECO.puerta.anchoM === 0.9);
+  });
+
+  it("columna 0.30, zapata 0.80 bajo columna, viga y losa medidas", () => {
+    const col = createColumna({ x: 2, y: 2 }, structId("C", 1));
+    assert.equal(col.id, "C-001");
+    assert.equal(col.lado, 0.3);
+    const under = snapZapataCenter({ x: 2.2, y: 2.1 }, [col], 0.5);
+    assert.equal(under.columnId, "C-001");
+    assert.equal(under.c.x, 2);
+    assert.equal(under.c.y, 2);
+    const far = snapZapataCenter({ x: 10, y: 10 }, [col], 0.5);
+    assert.equal(far.columnId, null);
+    const viga = createViga({ x: 0, y: 0 }, { x: 4, y: 0 }, structId("VG", 1));
+    assert.equal(vigaLargo(viga), 4);
+    const losa = createLosa(rectPoly({ x: 0, y: 0 }, { x: 4, y: 3 }), structId("L", 1));
+    assert.equal(losaArea(losa), 12);
+    assert.equal(polygonArea(rectPoly({ x: 0, y: 0 }, { x: 4, y: 3 })), 12);
+    assert.equal(hitSquare({ x: 2, y: 2 }, col.c, col.lado, 0), true);
+    assert.equal(hitSquare({ x: 3, y: 3 }, col.c, col.lado, 0), false);
   });
 });

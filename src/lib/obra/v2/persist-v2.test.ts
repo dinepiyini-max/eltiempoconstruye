@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { createHueco, createMuro } from "./geometry.ts";
+import { createColumna, createHueco, createLosa, createMuro, createViga, createZapata } from "./geometry.ts";
 import {
   V2_BAK_KEY,
   V2_FORBIDDEN_KEYS,
@@ -108,5 +108,54 @@ describe("v2 persist aislamiento", () => {
     });
     assert.ok(orphan);
     assert.equal(orphan.openings.length, 0);
+  });
+
+  it("F5 conserva columna zapata viga losa; save viejo sin ellas sigue", () => {
+    const storage = new Mem();
+    const wall = createMuro({ x: 0, y: 0 }, { x: 8, y: 0 }, "M-001");
+    const col = createColumna({ x: 2, y: 2 }, "C-001");
+    const zap = createZapata({ x: 2, y: 2 }, "Z-001", 0.8, "C-001");
+    const viga = createViga({ x: 0, y: 1 }, { x: 4, y: 1 }, "VG-001");
+    const losa = createLosa(
+      [
+        { x: 0, y: 0 },
+        { x: 3, y: 0 },
+        { x: 3, y: 2 },
+        { x: 0, y: 2 },
+      ],
+      "L-001",
+    );
+    const doc = {
+      ...emptyV2(),
+      walls: [wall],
+      columns: [col],
+      footings: [zap],
+      beams: [viga],
+      slabs: [losa],
+      nextSeq: 2,
+      nextColSeq: 2,
+      nextZapSeq: 2,
+      nextVigaSeq: 2,
+      nextLosaSeq: 2,
+    };
+    assert.equal(saveV2(doc, storage), true);
+    const loaded = loadV2(storage);
+    assert.equal(loaded.columns[0]?.id, "C-001");
+    assert.equal(loaded.footings[0]?.columnId, "C-001");
+    assert.equal(loaded.beams[0]?.id, "VG-001");
+    assert.equal(loaded.slabs[0]?.poly.length, 4);
+    assert.equal(storage.getItem("obra.jefe"), null);
+
+    const legacy = hydrateV2({
+      product: "obra.v2",
+      version: 1,
+      walls: [{ id: "M-001", a: { x: 0, y: 0 }, b: { x: 8, y: 0 }, espesor: 0.2 }],
+      nextSeq: 2,
+    });
+    assert.ok(legacy);
+    assert.equal(legacy.columns.length, 0);
+    assert.equal(legacy.footings.length, 0);
+    assert.equal(legacy.beams.length, 0);
+    assert.equal(legacy.slabs.length, 0);
   });
 });
