@@ -112,7 +112,7 @@ export function NuevaObra() {
   return (
     <div className="flex min-h-dvh flex-col overflow-hidden bg-paper text-ink" data-obra="nueva">
       <ModeTabs current="nueva" />
-      <header className="relative z-20 border-b border-rule/80 bg-paper/90 px-3 py-2 sm:px-5">
+      <header className="relative z-20 shrink-0 border-b border-rule/80 bg-paper px-3 py-2 sm:px-5">
         <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-3">
@@ -129,12 +129,15 @@ export function NuevaObra() {
             </p>
           </div>
         </div>
-        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-rule/60 pt-2">
+        <div
+          data-tools
+          className="mt-2 flex flex-wrap items-center gap-x-1 gap-y-1 border-t border-rule/60 pt-2"
+        >
           <ToolBtn on={tool === "muro"} onClick={() => setTool("muro")} label="MURO" />
           <ToolBtn
             on={tool === "seleccionar"}
             onClick={() => setTool("seleccionar")}
-            label="SEL"
+            label="SEL · elegir un muro"
             title={SEL_HINT}
           />
           <ToolBtn
@@ -149,6 +152,8 @@ export function NuevaObra() {
             label="VENTANA"
             title="Clic en un muro"
           />
+        </div>
+        <div className="flex flex-wrap items-center gap-x-1 gap-y-1">
           <ToolBtn on={false} onClick={deleteSelected} label="BORRAR" disabled={!selectedId} />
           <ToolBtn on={false} onClick={undo} label="DESHACER" disabled={!canUndo} />
           <ToolBtn on={false} onClick={redo} label="REHACER" disabled={!canRedo} />
@@ -159,17 +164,18 @@ export function NuevaObra() {
               {cota}
               {snapLabel ? ` · ${snapLabel}` : ""}
             </span>
-          ) : (
-            <span className="font-serif text-xs italic text-ink-soft">{hint}</span>
-          )}
+          ) : null}
         </div>
+        <p data-hint className="mt-1 font-serif text-xs italic text-ink-soft">
+          {hint}
+        </p>
       </header>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:flex-row">
-        <main className="relative min-h-[52vh] min-w-0 flex-1 overflow-hidden md:min-h-0">
+        <main className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
           {hydrated ? <NuevaCanvas /> : <div className="h-full w-full bg-paper" />}
         </main>
-        <aside className="shrink-0 border-t border-rule/80 bg-paper px-4 py-3 md:w-64 md:border-l md:border-t-0">
+        <aside className="max-h-[32vh] shrink-0 overflow-y-auto border-t border-rule/80 bg-paper px-4 py-3 md:max-h-none md:w-64 md:border-l md:border-t-0">
           <p className="small-caps text-[0.55rem] text-cyan">Cantidad</p>
           <h2 className="font-serif text-2xl text-ink">{panelTitle}</h2>
           <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm md:grid-cols-1">
@@ -208,11 +214,12 @@ function ToolBtn({
   return (
     <button
       type="button"
+      data-tool={label.toLowerCase()}
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className={`small-caps min-h-11 px-2 text-[0.62rem] ${
-        on ? "border-b border-rust text-ink" : "text-ink-soft"
+      className={`small-caps min-h-11 px-2.5 text-[0.68rem] tracking-[0.12em] ${
+        on ? "border-b-2 border-rust text-ink" : "text-ink"
       } disabled:text-faint`}
     >
       {label}
