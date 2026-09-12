@@ -35,3 +35,10 @@ export const V2_MURO = {
   minLargoM: 0.3,
   blockFaceM2: 0.08,
 } as const;
+
+/** Vanos sobre muro. Ancho por defecto: puerta 0.90 m, ventana 1.20 m. */
+export const V2_HUECO = {
+  puerta: { anchoM: 0.9, altoM: 2.1 },
+  ventana: { anchoM: 1.2, altoM: 1.2 },
+  minJambaM: 0.08,
+} as const;

@@ -1,11 +1,13 @@
 import { useEffect } from "react";
-import { Link } from "@tanstack/react-router";
+import { ModeTabs } from "@/components/obra/ModeTabs";
 import { formatInt } from "@/lib/obra/format";
 import { presupuesto } from "@/lib/obra/v2/cost";
 import { formatM2, formatMeters, muroLargo } from "@/lib/obra/v2/geometry";
 import { takeoffAsCost, takeoffMuro, takeoffMuros } from "@/lib/obra/v2/quantity";
 import { useNueva } from "@/lib/obra/v2/store";
 import { NuevaCanvas } from "./NuevaCanvas";
+
+const SEL_HINT = "SEL · elegir un muro";
 
 export function NuevaObra() {
   const hydrate = useNueva((s) => s.hydrate);
@@ -14,6 +16,7 @@ export function NuevaObra() {
   const setTool = useNueva((s) => s.setTool);
   const selectedId = useNueva((s) => s.selectedId);
   const walls = useNueva((s) => s.walls);
+  const openings = useNueva((s) => s.openings);
   const draft = useNueva((s) => s.draft);
   const canUndo = useNueva((s) => s.canUndo);
   const canRedo = useNueva((s) => s.canRedo);
@@ -59,7 +62,9 @@ export function NuevaObra() {
       if (e.key === "+" || e.key === "=") zoom({ x: 200, y: 160 }, 1.15);
       if (e.key === "-" || e.key === "_") zoom({ x: 200, y: 160 }, 0.87);
       if (e.key === "m" || e.key === "M" || e.key === "1") setTool("muro");
-      if (e.key === "v" || e.key === "V" || e.key === "2") setTool("seleccionar");
+      if (e.key === "s" || e.key === "S" || e.key === "2") setTool("seleccionar");
+      if (e.key === "p" || e.key === "P" || e.key === "3") setTool("puerta");
+      if (e.key === "v" || e.key === "V" || e.key === "4") setTool("ventana");
     };
     document.addEventListener("visibilitychange", onHide);
     window.addEventListener("pagehide", flush);
@@ -71,15 +76,42 @@ export function NuevaObra() {
     };
   }, [flush, undo, redo, deleteSelected, setDraft, zoom, setTool]);
 
-  const selected = walls.find((w) => w.id === selectedId) ?? null;
-  const qty = selected ? takeoffMuro(selected) : takeoffMuros(walls);
+  const selectedHueco = openings.find((h) => h.id === selectedId) ?? null;
+  const selectedWall =
+    walls.find((w) => w.id === selectedId) ??
+    (selectedHueco ? (walls.find((w) => w.id === selectedHueco.wallId) ?? null) : null);
+  const qty = selectedWall ? takeoffMuro(selectedWall, undefined, openings) : takeoffMuros(walls, undefined, openings);
   const cost = presupuesto(takeoffAsCost(qty));
-  const cota = draft ? formatMeters(muroLargo(draft)) : selected ? formatMeters(muroLargo(selected)) : null;
+  const cota = draft
+    ? formatMeters(muroLargo(draft))
+    : selectedHueco
+      ? formatMeters(selectedHueco.ancho)
+      : selectedWall
+        ? formatMeters(muroLargo(selectedWall))
+        : null;
   const snapLabel =
     draft?.kind === "horizontal" ? "HORZ" : draft?.kind === "vertical" ? "VERT" : draft?.kind === "esquina" ? "ESQ" : null;
 
+  const hint =
+    tool === "seleccionar"
+      ? SEL_HINT
+      : tool === "puerta"
+        ? "Clic en un muro para la puerta."
+        : tool === "ventana"
+          ? "Clic en un muro para la ventana."
+          : "Clic, clic — o arrastra. Snap: horz / vert / esquina.";
+
+  const panelTitle = selectedHueco
+    ? selectedHueco.id
+    : selectedWall
+      ? selectedWall.id
+      : walls.length
+        ? "MUROS"
+        : "MURO";
+
   return (
     <div className="flex min-h-dvh flex-col overflow-hidden bg-paper text-ink" data-obra="nueva">
+      <ModeTabs current="nueva" />
       <header className="relative z-20 border-b border-rule/80 bg-paper/90 px-3 py-2 sm:px-5">
         <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2">
           <div className="min-w-0">
@@ -96,21 +128,27 @@ export function NuevaObra() {
               El tiempo construye. Aquí se traza, se mide y se guarda.
             </p>
           </div>
-          <nav className="flex flex-wrap items-center gap-1 pt-1" aria-label="Láminas">
-            <Link
-              to="/"
-              className="small-caps min-h-11 px-3 text-[0.7rem] text-ink-soft hover:text-ink"
-            >
-              <span className="border-b border-transparent pb-1">VALLE DEL YUNA</span>
-            </Link>
-            <span className="small-caps min-h-11 px-3 text-[0.7rem] text-ink">
-              <span className="border-b border-rust pb-1">NUEVA OBRA</span>
-            </span>
-          </nav>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-rule/60 pt-2">
           <ToolBtn on={tool === "muro"} onClick={() => setTool("muro")} label="MURO" />
-          <ToolBtn on={tool === "seleccionar"} onClick={() => setTool("seleccionar")} label="SEL" />
+          <ToolBtn
+            on={tool === "seleccionar"}
+            onClick={() => setTool("seleccionar")}
+            label="SEL"
+            title={SEL_HINT}
+          />
+          <ToolBtn
+            on={tool === "puerta"}
+            onClick={() => setTool("puerta")}
+            label="PUERTA"
+            title="Clic en un muro"
+          />
+          <ToolBtn
+            on={tool === "ventana"}
+            onClick={() => setTool("ventana")}
+            label="VENTANA"
+            title="Clic en un muro"
+          />
           <ToolBtn on={false} onClick={deleteSelected} label="BORRAR" disabled={!selectedId} />
           <ToolBtn on={false} onClick={undo} label="DESHACER" disabled={!canUndo} />
           <ToolBtn on={false} onClick={redo} label="REHACER" disabled={!canRedo} />
@@ -122,9 +160,7 @@ export function NuevaObra() {
               {snapLabel ? ` · ${snapLabel}` : ""}
             </span>
           ) : (
-            <span className="font-serif text-xs italic text-ink-soft">
-              {tool === "muro" ? "Clic, clic — o arrastra. Snap: horz / vert / esquina." : "Toca un muro para medirlo."}
-            </span>
+            <span className="font-serif text-xs italic text-ink-soft">{hint}</span>
           )}
         </div>
       </header>
@@ -135,10 +171,11 @@ export function NuevaObra() {
         </main>
         <aside className="shrink-0 border-t border-rule/80 bg-paper px-4 py-3 md:w-64 md:border-l md:border-t-0">
           <p className="small-caps text-[0.55rem] text-cyan">Cantidad</p>
-          <h2 className="font-serif text-2xl text-ink">{selected ? selected.id : walls.length ? "MUROS" : "MURO"}</h2>
+          <h2 className="font-serif text-2xl text-ink">{panelTitle}</h2>
           <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm md:grid-cols-1">
             <Qty k="Longitud" v={formatMeters(qty.largoM)} />
-            <Qty k="Área" v={formatM2(qty.areaM2)} />
+            <Qty k="Área" v={formatM2(qty.areaNetaM2)} />
+            {qty.vanoM2 > 0 ? <Qty k="Vanos" v={formatM2(qty.vanoM2)} /> : null}
             <Qty k="Blocks est." v={String(qty.blocksEst)} />
             <Qty k="Hormigón" v={`${qty.hormigonM3.toFixed(2)} m³`} />
           </dl>
@@ -160,17 +197,20 @@ function ToolBtn({
   onClick,
   label,
   disabled,
+  title,
 }: {
   on: boolean;
   onClick: () => void;
   label: string;
   disabled?: boolean;
+  title?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
+      title={title}
       className={`small-caps min-h-11 px-2 text-[0.62rem] ${
         on ? "border-b border-rust text-ink" : "text-ink-soft"
       } disabled:text-faint`}

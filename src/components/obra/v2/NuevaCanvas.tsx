@@ -1,6 +1,14 @@
 import { useEffect, useRef } from "react";
-import { drawNueva, hitTestWalls, paletteFrom, toWorld } from "@/lib/obra/v2/draw-v2";
-import { lengthMeters, type Pt } from "@/lib/obra/v2/geometry";
+import { drawNueva, hitTestHuecos, hitTestWalls, paletteFrom, toWorld, type HuecoPreview } from "@/lib/obra/v2/draw-v2";
+import {
+  clampHuecoAlong,
+  huecoAnchoDefault,
+  alongMuro,
+  lengthMeters,
+  muroLargo,
+  type HuecoKind,
+  type Pt,
+} from "@/lib/obra/v2/geometry";
 import { useNueva } from "@/lib/obra/v2/store";
 
 const DRAG_PX = 7;
@@ -12,6 +20,7 @@ export function NuevaCanvas() {
   const down = useRef<{ screen: Pt; moved: boolean; pan: boolean; started: boolean } | null>(null);
   const space = useRef(false);
   const fitted = useRef(false);
+  const hover = useRef<HuecoPreview | null>(null);
 
   useEffect(() => {
     const canvas = ref.current;
@@ -55,13 +64,16 @@ export function NuevaCanvas() {
         parent.clientHeight,
         {
           walls: st.walls,
+          openings: st.openings,
           selectedId: st.selectedId,
           draft: st.draft,
           view: st.view,
+          hover: hover.current,
         },
         pal,
       );
-      canvas.style.cursor = st.tool === "muro" ? "crosshair" : "default";
+      canvas.style.cursor =
+        st.tool === "muro" || st.tool === "puerta" || st.tool === "ventana" ? "crosshair" : "default";
     };
     raf = requestAnimationFrame(loop);
 
@@ -70,6 +82,27 @@ export function NuevaCanvas() {
       return { x: e.clientX - r.left, y: e.clientY - r.top };
     };
     const worldOf = (screen: Pt) => toWorld(useNueva.getState().view, screen);
+
+    const previewHueco = (kind: HuecoKind, world: Pt) => {
+      const st = useNueva.getState();
+      const wallId = hitTestWalls(world, st.walls, st.view.ppm);
+      if (!wallId) {
+        hover.current = null;
+        return;
+      }
+      const m = st.walls.find((w) => w.id === wallId);
+      if (!m) {
+        hover.current = null;
+        return;
+      }
+      const ancho = huecoAnchoDefault(kind);
+      const along = clampHuecoAlong(muroLargo(m), ancho, alongMuro(m, world));
+      if (along == null) {
+        hover.current = null;
+        return;
+      }
+      hover.current = { kind, wallId, alongM: along, ancho };
+    };
 
     const onDown = (e: PointerEvent) => {
       if (e.button === 2) return;
@@ -96,7 +129,14 @@ export function NuevaCanvas() {
       if (pan) return;
       const st = useNueva.getState();
       if (st.tool === "seleccionar") {
-        st.select(hitTestWalls(worldOf(screen), st.walls, st.view.ppm));
+        const world = worldOf(screen);
+        const hid = hitTestHuecos(world, st.walls, st.openings, st.view.ppm);
+        st.select(hid ?? hitTestWalls(world, st.walls, st.view.ppm));
+        return;
+      }
+      if (st.tool === "puerta" || st.tool === "ventana") {
+        st.placeHueco(st.tool, worldOf(screen));
+        hover.current = null;
         return;
       }
       if (!st.draft) {
@@ -135,6 +175,11 @@ export function NuevaCanvas() {
           down.current.moved = true;
         }
       }
+      if (st.tool === "puerta" || st.tool === "ventana") {
+        if (!down.current) previewHueco(st.tool, worldOf(screen));
+        return;
+      }
+      hover.current = null;
       if (st.tool !== "muro" || !st.draft) return;
       const s = st.snap(worldOf(screen), st.draft.a);
       st.setDraft({ a: st.draft.a, b: s.point, kind: s.kind });
@@ -164,10 +209,15 @@ export function NuevaCanvas() {
       if (e.key === " " || e.code === "Space") space.current = e.type === "keydown";
     };
 
+    const onLeave = () => {
+      hover.current = null;
+    };
+
     canvas.addEventListener("pointerdown", onDown);
     canvas.addEventListener("pointermove", onMove);
     canvas.addEventListener("pointerup", onUp);
     canvas.addEventListener("pointercancel", onUp);
+    canvas.addEventListener("pointerleave", onLeave);
     canvas.addEventListener("wheel", onWheel, { passive: false });
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onKey);
@@ -182,6 +232,7 @@ export function NuevaCanvas() {
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerup", onUp);
       canvas.removeEventListener("pointercancel", onUp);
+      canvas.removeEventListener("pointerleave", onLeave);
       canvas.removeEventListener("wheel", onWheel);
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("keyup", onKey);

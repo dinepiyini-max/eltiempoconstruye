@@ -3,19 +3,29 @@ import assert from "node:assert/strict";
 import { CAMINO, MURO, RIVER } from "../terrain.ts";
 import {
   FIXTURE_TRAZO,
+  alongMuro,
+  clampHuecoAlong,
+  createHueco,
   createMuro,
   cutFillProfile,
   formatMeters,
+  huecoAnchoDefault,
+  huecoEnds,
+  huecoId,
+  huecoOverlaps,
   lengthMeters,
   measure,
   muroId,
   muroLargo,
+  muroParts,
   muroPoly,
+  placeHuecoOnMuro,
   polylineLength,
   polylineLengthMeters,
   sampleHeights,
   snapDraft,
 } from "./geometry.ts";
+import { V2_HUECO } from "./tables.ts";
 
 describe("v2 geometry", () => {
   it("largo de fixture > 0 y en metros = largo × escala 2", () => {
@@ -83,5 +93,35 @@ describe("v2 geometry", () => {
     assert.equal(e.kind, "esquina");
     assert.equal(e.point.x, 8);
     assert.equal(e.point.y, 0);
+  });
+
+  it("hueco ligado al muro: vano recorta la línea y no flota", () => {
+    const muro = createMuro({ x: 0, y: 0 }, { x: 8, y: 0 }, "M-001");
+    assert.equal(huecoAnchoDefault("puerta"), 0.9);
+    assert.equal(huecoAnchoDefault("ventana"), 1.2);
+    assert.equal(huecoId("puerta", 1), "P-001");
+    assert.equal(alongMuro(muro, { x: 4, y: 0.1 }), 4);
+
+    const puerta = placeHuecoOnMuro("puerta", muro, { x: 4, y: 0 }, [], huecoId("puerta", 1));
+    assert.ok(puerta);
+    assert.equal(puerta.wallId, "M-001");
+    assert.equal(puerta.ancho, 0.9);
+    assert.ok(Math.abs(puerta.alongM - 4) < 1e-9);
+    const ends = huecoEnds(muro, puerta)!;
+    assert.ok(Math.abs(lengthMeters(ends.a, ends.b) - 0.9) < 1e-9);
+
+    const parts = muroParts(muro, [puerta]);
+    assert.equal(parts.length, 2);
+    const gap = lengthMeters(parts[0]!.b, parts[1]!.a);
+    assert.ok(Math.abs(gap - 0.9) < 1e-6);
+
+    const tooShort = createMuro({ x: 0, y: 0 }, { x: 0.5, y: 0 }, "M-002");
+    assert.equal(placeHuecoOnMuro("puerta", tooShort, { x: 0.25, y: 0 }, [], "P-002"), null);
+    assert.equal(clampHuecoAlong(0.5, 0.9, 0.25), null);
+
+    const dup = placeHuecoOnMuro("ventana", muro, { x: 4, y: 0 }, [puerta], "V-001");
+    assert.equal(dup, null);
+    assert.equal(huecoOverlaps(puerta, createHueco("ventana", "M-001", 4, "V-x", 1.2)), true);
+    assert.ok(V2_HUECO.puerta.anchoM === 0.9);
   });
 });

@@ -5,6 +5,7 @@ import { AbsenceNote } from "./AbsenceNote";
 import { Archivo } from "./Archivo";
 import { Contratos } from "./Contratos";
 import { Libreta } from "./Libreta";
+import { ModeTabs } from "./ModeTabs";
 import { Obra } from "./Obra";
 import { Plano } from "./Plano";
 import { SimHost } from "./SimHost";
@@ -31,6 +32,7 @@ export function AppShell({ slot }: { slot: SaveSlot }) {
 
   return (
     <div className="flex min-h-dvh flex-col overflow-x-hidden bg-paper text-ink">
+      <ModeTabs current="yuna" />
       <SimHost slot={slot} />
       {hydrated ? (
         <>

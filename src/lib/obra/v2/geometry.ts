@@ -1,9 +1,10 @@
 /**
  * Geometry V2 — medir. Lee height(); no muta el valle.
  * FASE C: muro en metros, snap, cota. El editor no duplica esta matemática.
+ * FASE E: hueco (puerta/ventana) ligado a wallId + posición a lo largo.
  */
 import { dist, height, type Pt } from "../terrain.ts";
-import { V2_MURO, V2_SCALE_M_PER_UNIT } from "./tables.ts";
+import { V2_HUECO, V2_MURO, V2_SCALE_M_PER_UNIT } from "./tables.ts";
 
 export type { Pt };
 
@@ -145,16 +146,20 @@ export function muroLargo(m: Pick<Muro, "a" | "b">): number {
 
 /** Rectángulo de planta del muro (4 vértices). */
 export function muroPoly(m: Muro): Pt[] {
-  const dx = m.b.x - m.a.x;
-  const dy = m.b.y - m.a.y;
+  return thickPoly(m.a, m.b, m.espesor);
+}
+
+export function thickPoly(a: Pt, b: Pt, espesor: number): Pt[] {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
   const L = Math.hypot(dx, dy) || 1;
-  const hx = (-dy / L) * (m.espesor / 2);
-  const hy = (dx / L) * (m.espesor / 2);
+  const hx = (-dy / L) * (espesor / 2);
+  const hy = (dx / L) * (espesor / 2);
   return [
-    { x: m.a.x + hx, y: m.a.y + hy },
-    { x: m.b.x + hx, y: m.b.y + hy },
-    { x: m.b.x - hx, y: m.b.y - hy },
-    { x: m.a.x - hx, y: m.a.y - hy },
+    { x: a.x + hx, y: a.y + hy },
+    { x: b.x + hx, y: b.y + hy },
+    { x: b.x - hx, y: b.y - hy },
+    { x: a.x - hx, y: a.y - hy },
   ];
 }
 
@@ -230,4 +235,146 @@ export function snapDraft(
   if (h <= angLim && h <= v) return { point: { x: raw.x, y: origin.y }, kind: "horizontal" };
   if (v <= angLim) return { point: { x: origin.x, y: raw.y }, kind: "vertical" };
   return { point: { x: raw.x, y: raw.y }, kind: null };
+}
+
+/* ── FASE E: hueco sobre muro. No flota. ── */
+
+export type HuecoKind = "puerta" | "ventana";
+
+export type Hueco = {
+  id: string;
+  kind: HuecoKind;
+  wallId: string;
+  /** Centro del vano, metros desde el extremo a. */
+  alongM: number;
+  ancho: number;
+};
+
+export function huecoId(kind: HuecoKind, seq: number): string {
+  return `${kind === "puerta" ? "P" : "V"}-${String(seq).padStart(3, "0")}`;
+}
+
+export function nextHuecoSeqFor(kind: HuecoKind, openings: readonly Hueco[]): number {
+  const prefix = kind === "puerta" ? "P-" : "V-";
+  let n = 1;
+  for (const h of openings) {
+    if (!h.id.startsWith(prefix)) continue;
+    const num = Number(h.id.slice(prefix.length));
+    if (Number.isFinite(num)) n = Math.max(n, num + 1);
+  }
+  return n;
+}
+
+export function createHueco(
+  kind: HuecoKind,
+  wallId: string,
+  alongM: number,
+  id: string,
+  ancho: number,
+): Hueco {
+  return { id, kind, wallId, alongM, ancho };
+}
+
+export function huecoAlto(kind: HuecoKind): number {
+  return kind === "puerta" ? V2_HUECO.puerta.altoM : V2_HUECO.ventana.altoM;
+}
+
+export function huecoAnchoDefault(kind: HuecoKind): number {
+  return kind === "puerta" ? V2_HUECO.puerta.anchoM : V2_HUECO.ventana.anchoM;
+}
+
+export function pointAlong(m: Pick<Muro, "a" | "b">, t: number): Pt {
+  return { x: m.a.x + (m.b.x - m.a.x) * t, y: m.a.y + (m.b.y - m.a.y) * t };
+}
+
+/** Proyección (puede salir de [0, L]). */
+export function alongMuro(m: Pick<Muro, "a" | "b">, p: Pt): number {
+  const L = muroLargo(m);
+  if (L < 1e-9) return 0;
+  const t = ((p.x - m.a.x) * (m.b.x - m.a.x) + (p.y - m.a.y) * (m.b.y - m.a.y)) / (L * L);
+  return t * L;
+}
+
+/** null si el muro no cabe el vano. */
+export function clampHuecoAlong(L: number, ancho: number, alongM: number, jamba = V2_HUECO.minJambaM): number | null {
+  const need = ancho + 2 * jamba;
+  if (L < need - 1e-9) return null;
+  const lo = jamba + ancho / 2;
+  const hi = L - jamba - ancho / 2;
+  return Math.max(lo, Math.min(hi, alongM));
+}
+
+export function huecoRange(h: Pick<Hueco, "alongM" | "ancho">): { lo: number; hi: number } {
+  return { lo: h.alongM - h.ancho / 2, hi: h.alongM + h.ancho / 2 };
+}
+
+export function huecoOverlaps(
+  a: Pick<Hueco, "wallId" | "alongM" | "ancho">,
+  b: Pick<Hueco, "wallId" | "alongM" | "ancho">,
+  gap = V2_HUECO.minJambaM,
+): boolean {
+  if (a.wallId !== b.wallId) return false;
+  const A = huecoRange(a);
+  const B = huecoRange(b);
+  return A.lo < B.hi + gap && B.lo < A.hi + gap;
+}
+
+export function huecoEnds(m: Pick<Muro, "a" | "b">, h: Pick<Hueco, "alongM" | "ancho">): { a: Pt; b: Pt } | null {
+  const L = muroLargo(m);
+  if (L < 1e-9) return null;
+  const { lo, hi } = huecoRange(h);
+  return { a: pointAlong(m, lo / L), b: pointAlong(m, hi / L) };
+}
+
+export function muroDir(m: Pick<Muro, "a" | "b">): { dx: number; dy: number; nx: number; ny: number; L: number } {
+  const L = muroLargo(m) || 1;
+  const dx = (m.b.x - m.a.x) / L;
+  const dy = (m.b.y - m.a.y) / L;
+  return { dx, dy, nx: -dy, ny: dx, L };
+}
+
+/** Tramos sólidos del muro, con vanos recortados. */
+export function muroParts(m: Muro, huecos: readonly Hueco[]): { a: Pt; b: Pt }[] {
+  const L = muroLargo(m);
+  if (L < 1e-9) return [];
+  const cuts = huecos
+    .filter((h) => h.wallId === m.id)
+    .map((h) => {
+      const { lo, hi } = huecoRange(h);
+      return { t0: Math.max(0, lo / L), t1: Math.min(1, hi / L) };
+    })
+    .filter((c) => c.t1 - c.t0 > 1e-4)
+    .sort((x, y) => x.t0 - y.t0);
+
+  const merged: { t0: number; t1: number }[] = [];
+  for (const c of cuts) {
+    const last = merged[merged.length - 1];
+    if (!last || c.t0 > last.t1 + 1e-6) merged.push({ t0: c.t0, t1: c.t1 });
+    else last.t1 = Math.max(last.t1, c.t1);
+  }
+
+  const parts: { a: Pt; b: Pt }[] = [];
+  let t = 0;
+  for (const c of merged) {
+    if (c.t0 - t > 1e-4) parts.push({ a: pointAlong(m, t), b: pointAlong(m, c.t0) });
+    t = c.t1;
+  }
+  if (1 - t > 1e-4) parts.push({ a: pointAlong(m, t), b: pointAlong(m, 1) });
+  return parts;
+}
+
+export function placeHuecoOnMuro(
+  kind: HuecoKind,
+  m: Muro,
+  world: Pt,
+  existing: readonly Hueco[],
+  id: string,
+): Hueco | null {
+  const L = muroLargo(m);
+  const ancho = huecoAnchoDefault(kind);
+  const along = clampHuecoAlong(L, ancho, alongMuro(m, world));
+  if (along == null) return null;
+  const hueco = createHueco(kind, m.id, along, id, ancho);
+  if (existing.some((o) => huecoOverlaps(o, hueco))) return null;
+  return hueco;
 }

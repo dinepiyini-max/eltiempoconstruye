@@ -5,8 +5,12 @@ import {
   cornersOf,
   distToSegment,
   formatMeters,
+  huecoEnds,
+  muroDir,
   muroLargo,
-  muroPoly,
+  muroParts,
+  thickPoly,
+  type Hueco,
   type Muro,
   type Pt,
   type SnapKind,
@@ -64,11 +68,15 @@ export function zoomAt(view: V2View, screen: Pt, factor: number): V2View {
 
 export type Draft = { a: Pt; b: Pt; kind: SnapKind };
 
+export type HuecoPreview = Pick<Hueco, "kind" | "wallId" | "alongM" | "ancho">;
+
 export type DrawNuevaInput = {
   walls: readonly Muro[];
+  openings: readonly Hueco[];
   selectedId: string | null;
   draft: Draft | null;
   view: V2View;
+  hover?: HuecoPreview | null;
 };
 
 function strokePoly(ctx: CanvasRenderingContext2D, pts: Pt[], view: V2View, closed: boolean) {
@@ -129,13 +137,21 @@ function drawGrid(ctx: CanvasRenderingContext2D, w: number, h: number, view: V2V
   ctx.restore();
 }
 
-function drawCota(ctx: CanvasRenderingContext2D, a: Pt, b: Pt, view: V2View, pal: Palette, label: string) {
+function drawCota(
+  ctx: CanvasRenderingContext2D,
+  a: Pt,
+  b: Pt,
+  view: V2View,
+  pal: Palette,
+  label: string,
+  side: 1 | -1 = 1,
+) {
   const L = muroLargo({ a, b });
   if (L < 0.05) return;
   const dx = b.x - a.x;
   const dy = b.y - a.y;
-  const nx = -dy / L;
-  const ny = dx / L;
+  const nx = (-dy / L) * side;
+  const ny = (dx / L) * side;
   const off = Math.max(0.35, 14 / view.ppm);
   const a2 = { x: a.x + nx * off, y: a.y + ny * off };
   const b2 = { x: b.x + nx * off, y: b.y + ny * off };
@@ -171,9 +187,16 @@ function drawCota(ctx: CanvasRenderingContext2D, a: Pt, b: Pt, view: V2View, pal
   ctx.restore();
 }
 
-function drawWall(ctx: CanvasRenderingContext2D, m: Muro, view: V2View, pal: Palette, selected: boolean) {
-  const poly = muroPoly(m);
-  ctx.save();
+function drawBody(
+  ctx: CanvasRenderingContext2D,
+  a: Pt,
+  b: Pt,
+  espesor: number,
+  view: V2View,
+  pal: Palette,
+  selected: boolean,
+) {
+  const poly = thickPoly(a, b, espesor);
   strokePoly(ctx, poly, view, true);
   ctx.fillStyle = selected ? pal.cyan : pal.graphite;
   ctx.globalAlpha = selected ? 0.28 : 0.18;
@@ -182,7 +205,118 @@ function drawWall(ctx: CanvasRenderingContext2D, m: Muro, view: V2View, pal: Pal
   ctx.strokeStyle = selected ? pal.cyan : pal.ink;
   ctx.lineWidth = selected ? 2 : 1.2;
   ctx.stroke();
-  if (selected) {
+}
+
+function drawJamb(
+  ctx: CanvasRenderingContext2D,
+  m: Muro,
+  p: Pt,
+  view: V2View,
+  pal: Palette,
+  selected: boolean,
+) {
+  const { nx, ny } = muroDir(m);
+  const half = m.espesor / 2 + 0.04;
+  const a = { x: p.x + nx * half, y: p.y + ny * half };
+  const b = { x: p.x - nx * half, y: p.y - ny * half };
+  const sa = toScreen(view, a);
+  const sb = toScreen(view, b);
+  ctx.beginPath();
+  ctx.moveTo(sa.x, sa.y);
+  ctx.lineTo(sb.x, sb.y);
+  ctx.strokeStyle = selected ? pal.cyan : pal.ink;
+  ctx.lineWidth = selected ? 2 : 1.4;
+  ctx.stroke();
+}
+
+function drawHueco(
+  ctx: CanvasRenderingContext2D,
+  m: Muro,
+  h: Hueco | HuecoPreview,
+  view: V2View,
+  pal: Palette,
+  selected: boolean,
+  preview: boolean,
+) {
+  const ends = huecoEnds(m, h);
+  if (!ends) return;
+  ctx.save();
+  if (preview) ctx.globalAlpha = 0.55;
+  drawJamb(ctx, m, ends.a, view, pal, selected);
+  drawJamb(ctx, m, ends.b, view, pal, selected);
+
+  const { nx, ny, dx, dy } = muroDir(m);
+  if (h.kind === "ventana") {
+    const inset = Math.max(0.03, m.espesor * 0.22);
+    const a1 = { x: ends.a.x + nx * inset, y: ends.a.y + ny * inset };
+    const b1 = { x: ends.b.x + nx * inset, y: ends.b.y + ny * inset };
+    const a2 = { x: ends.a.x - nx * inset, y: ends.a.y - ny * inset };
+    const b2 = { x: ends.b.x - nx * inset, y: ends.b.y - ny * inset };
+    ctx.strokeStyle = selected ? pal.cyan : pal.graphite;
+    ctx.lineWidth = 1;
+    const sA1 = toScreen(view, a1);
+    const sB1 = toScreen(view, b1);
+    const sA2 = toScreen(view, a2);
+    const sB2 = toScreen(view, b2);
+    ctx.beginPath();
+    ctx.moveTo(sA1.x, sA1.y);
+    ctx.lineTo(sB1.x, sB1.y);
+    ctx.moveTo(sA2.x, sA2.y);
+    ctx.lineTo(sB2.x, sB2.y);
+    ctx.stroke();
+  } else {
+    const hinge = ends.a;
+    const leaf = ends.b;
+    const radius = h.ancho;
+    const open = { x: hinge.x + nx * radius, y: hinge.y + ny * radius };
+    ctx.strokeStyle = selected ? pal.cyan : pal.ink;
+    ctx.lineWidth = 1;
+    ctx.setLineDash(preview ? [5, 4] : []);
+    const sH = toScreen(view, hinge);
+    const sL = toScreen(view, leaf);
+    const sO = toScreen(view, open);
+    ctx.beginPath();
+    ctx.moveTo(sH.x, sH.y);
+    ctx.lineTo(sO.x, sO.y);
+    ctx.stroke();
+    ctx.beginPath();
+    const start = Math.atan2(sL.y - sH.y, sL.x - sH.x);
+    const end = Math.atan2(sO.y - sH.y, sO.x - sH.x);
+    const rPx = radius * view.ppm;
+    const cross = dx * ny - dy * nx;
+    ctx.arc(sH.x, sH.y, rPx, start, end, cross > 0);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  if (!preview) drawCota(ctx, ends.a, ends.b, view, pal, formatMeters(h.ancho), -1);
+  ctx.restore();
+}
+
+function drawWall(
+  ctx: CanvasRenderingContext2D,
+  m: Muro,
+  openings: readonly Hueco[],
+  view: V2View,
+  pal: Palette,
+  selected: boolean,
+  selectedHuecoId: string | null,
+  showMeta: boolean,
+) {
+  const mine = openings.filter((h) => h.wallId === m.id);
+  const parts = muroParts(m, mine);
+  ctx.save();
+  for (const p of parts) {
+    drawBody(ctx, p.a, p.b, m.espesor, view, pal, selected);
+  }
+  if (parts.length === 0 && mine.length === 0) {
+    drawBody(ctx, m.a, m.b, m.espesor, view, pal, selected);
+  }
+  for (const h of mine) {
+    const hid = "id" in h ? h.id : "";
+    drawHueco(ctx, m, h, view, pal, hid === selectedHuecoId, false);
+  }
+  if (showMeta) {
     for (const p of [m.a, m.b]) {
       const s = toScreen(view, p);
       ctx.fillStyle = pal.paper;
@@ -191,7 +325,7 @@ function drawWall(ctx: CanvasRenderingContext2D, m: Muro, view: V2View, pal: Pal
       ctx.fillRect(s.x - 4, s.y - 4, 8, 8);
       ctx.strokeRect(s.x - 4, s.y - 4, 8, 8);
     }
-    drawCota(ctx, m.a, m.b, view, pal, formatMeters(muroLargo(m)));
+    drawCota(ctx, m.a, m.b, view, pal, formatMeters(muroLargo(m)), 1);
   }
   ctx.restore();
 }
@@ -233,8 +367,15 @@ export function drawNueva(
   ctx.fillStyle = pal.paper;
   ctx.fillRect(0, 0, w, h);
   drawGrid(ctx, w, h, input.view, pal);
+  const selectedHueco = input.openings.find((o) => o.id === input.selectedId) ?? null;
   for (const m of input.walls) {
-    drawWall(ctx, m, input.view, pal, m.id === input.selectedId);
+    const self = m.id === input.selectedId;
+    const parent = selectedHueco?.wallId === m.id;
+    drawWall(ctx, m, input.openings, input.view, pal, self || parent, selectedHueco?.id ?? null, self);
+  }
+  if (input.hover) {
+    const m = input.walls.find((w) => w.id === input.hover!.wallId);
+    if (m) drawHueco(ctx, m, input.hover, input.view, pal, true, true);
   }
   if (input.draft) {
     const { a, b } = input.draft;
@@ -272,6 +413,25 @@ export function hitTestWalls(world: Pt, walls: readonly Muro[], ppm: number): st
   for (const m of walls) {
     const d = distToSegment(world, m.a, m.b);
     if (d <= m.espesor / 2 + slack && (!best || d < best.d)) best = { id: m.id, d };
+  }
+  return best?.id ?? null;
+}
+
+export function hitTestHuecos(
+  world: Pt,
+  walls: readonly Muro[],
+  openings: readonly Hueco[],
+  ppm: number,
+): string | null {
+  const slack = Math.max(0.1, 12 / ppm);
+  let best: { id: string; d: number } | null = null;
+  for (const h of openings) {
+    const m = walls.find((w) => w.id === h.wallId);
+    if (!m) continue;
+    const ends = huecoEnds(m, h);
+    if (!ends) continue;
+    const d = distToSegment(world, ends.a, ends.b);
+    if (d <= m.espesor / 2 + slack && (!best || d < best.d)) best = { id: h.id, d };
   }
   return best?.id ?? null;
 }

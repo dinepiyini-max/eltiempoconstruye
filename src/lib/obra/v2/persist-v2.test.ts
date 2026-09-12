@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { createMuro } from "./geometry.ts";
+import { createHueco, createMuro } from "./geometry.ts";
 import {
   V2_BAK_KEY,
   V2_FORBIDDEN_KEYS,
@@ -68,5 +68,45 @@ describe("v2 persist aislamiento", () => {
     );
     assert.ok(ok);
     assert.equal(ok.walls[0]?.id, "M-007");
+  });
+
+  it("F5 conserva muros + huecos; save viejo sin openings sigue", () => {
+    const storage = new Mem();
+    const wall = createMuro({ x: 0, y: 0 }, { x: 8, y: 0 }, "M-001");
+    const door = createHueco("puerta", "M-001", 3, "P-001", 0.9);
+    const doc = {
+      ...emptyV2(),
+      walls: [wall],
+      openings: [door],
+      nextSeq: 2,
+      nextHuecoSeq: 2,
+    };
+    assert.equal(saveV2(doc, storage), true);
+    const loaded = loadV2(storage);
+    assert.equal(loaded.walls.length, 1);
+    assert.equal(loaded.openings.length, 1);
+    assert.equal(loaded.openings[0]?.kind, "puerta");
+    assert.equal(loaded.openings[0]?.wallId, "M-001");
+    assert.equal(loaded.openings[0]?.ancho, 0.9);
+
+    const legacy = hydrateV2({
+      product: "obra.v2",
+      version: 1,
+      walls: [{ id: "M-001", a: { x: 0, y: 0 }, b: { x: 8, y: 0 }, espesor: 0.2 }],
+      nextSeq: 2,
+    });
+    assert.ok(legacy);
+    assert.equal(legacy.openings.length, 0);
+    assert.equal(legacy.nextHuecoSeq, 1);
+
+    const orphan = hydrateV2({
+      product: "obra.v2",
+      version: 1,
+      walls: [{ id: "M-001", a: { x: 0, y: 0 }, b: { x: 8, y: 0 }, espesor: 0.2 }],
+      openings: [{ id: "P-009", kind: "puerta", wallId: "M-999", alongM: 1, ancho: 0.9 }],
+      nextSeq: 2,
+    });
+    assert.ok(orphan);
+    assert.equal(orphan.openings.length, 0);
   });
 });

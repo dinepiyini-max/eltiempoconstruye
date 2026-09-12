@@ -3,8 +3,8 @@
  * Clave fija: obra.v2  (+ obra.v2.bak)
  * Nunca escribe obra.jefe ni obra.visita.
  */
-import { createMuro, type Muro, type Pt } from "./geometry.ts";
-import { V2_MURO } from "./tables.ts";
+import { createHueco, createMuro, type Hueco, type HuecoKind, type Muro, type Pt } from "./geometry.ts";
+import { V2_HUECO, V2_MURO } from "./tables.ts";
 
 export const V2_LIVE_KEY = "obra.v2";
 export const V2_BAK_KEY = "obra.v2.bak";
@@ -21,7 +21,9 @@ export type V2Document = {
   product: typeof V2_PRODUCT;
   version: typeof V2_DOC_VERSION;
   walls: Muro[];
+  openings: Hueco[];
   nextSeq: number;
+  nextHuecoSeq: number;
   view: V2View | null;
 };
 
@@ -51,7 +53,9 @@ export function emptyV2(): V2Document {
     product: V2_PRODUCT,
     version: V2_DOC_VERSION,
     walls: [],
+    openings: [],
     nextSeq: 1,
+    nextHuecoSeq: 1,
     view: null,
   };
 }
@@ -61,7 +65,9 @@ export function snapshotV2(doc: V2Document): V2Document {
     product: V2_PRODUCT,
     version: V2_DOC_VERSION,
     walls: doc.walls.map((m) => createMuro(m.a, m.b, m.id, m.espesor)),
+    openings: doc.openings.map((h) => createHueco(h.kind, h.wallId, h.alongM, h.id, h.ancho)),
     nextSeq: doc.nextSeq,
+    nextHuecoSeq: doc.nextHuecoSeq,
     view: doc.view ? { panX: doc.view.panX, panY: doc.view.panY, ppm: doc.view.ppm } : null,
   };
 }
@@ -84,6 +90,35 @@ function migrateWalls(raw: unknown): Muro[] {
   return out;
 }
 
+function migrateKind(v: unknown): HuecoKind | null {
+  return v === "puerta" || v === "ventana" ? v : null;
+}
+
+function migrateOpenings(raw: unknown, walls: readonly Muro[]): Hueco[] {
+  if (!Array.isArray(raw)) return [];
+  const wallIds = new Set(walls.map((m) => m.id));
+  const out: Hueco[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    if (!isObject(item)) continue;
+    const kind = migrateKind(item.kind);
+    const wallId = typeof item.wallId === "string" ? item.wallId : "";
+    if (!kind || !wallId || !wallIds.has(wallId)) continue;
+    const id =
+      typeof item.id === "string" && item.id
+        ? item.id
+        : `${kind === "puerta" ? "P" : "V"}-${String(out.length + 1).padStart(3, "0")}`;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const def = kind === "puerta" ? V2_HUECO.puerta.anchoM : V2_HUECO.ventana.anchoM;
+    const ancho = Math.max(0.3, num(item.ancho, def));
+    const alongM = num(item.alongM, NaN);
+    if (!Number.isFinite(alongM)) continue;
+    out.push(createHueco(kind, wallId, alongM, id, ancho));
+  }
+  return out;
+}
+
 function migrateView(raw: unknown): V2View | null {
   if (!isObject(raw)) return null;
   const ppm = num(raw.ppm, 0);
@@ -91,21 +126,38 @@ function migrateView(raw: unknown): V2View | null {
   return { panX: num(raw.panX, 0), panY: num(raw.panY, 0), ppm };
 }
 
+function seqFromIds(ids: readonly string[], prefix: RegExp, fallback: number): number {
+  let next = Math.max(1, Math.floor(fallback));
+  for (const id of ids) {
+    const n = Number(String(id).replace(prefix, ""));
+    if (Number.isFinite(n)) next = Math.max(next, n + 1);
+  }
+  return next;
+}
+
 export function hydrateV2(parsed: unknown): V2Document | null {
   if (!isObject(parsed)) return null;
   if (parsed.product !== V2_PRODUCT) return null;
   if (parsed.version !== V2_DOC_VERSION) return null;
   const walls = migrateWalls(parsed.walls);
-  let nextSeq = Math.max(1, Math.floor(num(parsed.nextSeq, 1)));
-  for (const w of walls) {
-    const n = Number(String(w.id).replace(/^M-/, ""));
-    if (Number.isFinite(n)) nextSeq = Math.max(nextSeq, n + 1);
-  }
+  const openings = migrateOpenings(parsed.openings, walls);
+  const nextSeq = seqFromIds(
+    walls.map((w) => w.id),
+    /^M-/,
+    num(parsed.nextSeq, 1),
+  );
+  const nextHuecoSeq = seqFromIds(
+    openings.map((h) => h.id),
+    /^[PV]-/,
+    num(parsed.nextHuecoSeq, 1),
+  );
   return {
     product: V2_PRODUCT,
     version: V2_DOC_VERSION,
     walls,
+    openings,
     nextSeq,
+    nextHuecoSeq,
     view: migrateView(parsed.view),
   };
 }
