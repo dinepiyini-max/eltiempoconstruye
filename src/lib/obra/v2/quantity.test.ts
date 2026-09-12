@@ -1,8 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { FIXTURE_RAMPA, measure } from "./geometry.ts";
-import { takeoff } from "./quantity.ts";
-import { V2_SECTIONS } from "./tables.ts";
+import { createMuro, FIXTURE_RAMPA, measure } from "./geometry.ts";
+import { takeoff, takeoffMuro } from "./quantity.ts";
+import { V2_MURO, V2_SECTIONS } from "./tables.ts";
 
 describe("v2 quantity", () => {
   it("takeoff m³ y t son ≥ 0 y hormigón = largo × sección V2", () => {
@@ -24,5 +24,15 @@ describe("v2 quantity", () => {
     assert.notEqual(via.hormigonM3, muro.hormigonM3);
     assert.notEqual(via.hormigonM3, losa.hormigonM3);
     assert.ok(losa.hormigonM3 > via.hormigonM3);
+  });
+
+  it("takeoff de muro 8 m: área = largo × alto, bloques enteros", () => {
+    const muro = createMuro({ x: 0, y: 0 }, { x: 8, y: 0 }, "M-001");
+    const q = takeoffMuro(muro);
+    assert.equal(q.largoM, 8);
+    assert.equal(q.areaM2, 8 * V2_MURO.altoM);
+    assert.equal(q.volumenM3, 8 * V2_MURO.altoM * V2_MURO.espesorM);
+    assert.equal(q.blocksEst, Math.ceil(q.areaM2 / V2_MURO.blockFaceM2));
+    assert.ok(q.hormigonM3 > 0);
   });
 });

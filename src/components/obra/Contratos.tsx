@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { GLOSS, NEXT_HITO, STAGE_LABEL, STRUCTURE_NAME, VALLEY_NAME } from "@/lib/obra/catalog";
 import { difficultyMarks, formatInt } from "@/lib/obra/format";
 import { MANDANTE, PLIEGO_LINES, SCRIPT_60 } from "@/lib/obra/pliego";
@@ -39,11 +40,24 @@ export function Contratos() {
         <p className="mt-1 font-serif text-xs italic text-ink-soft">{GLOSS.q50}</p>
         <p className="mt-2 font-serif text-sm leading-snug text-ink-soft">{PLIEGO_LINES[2]}</p>
       </header>
-      <ol className="mt-3 flex flex-col gap-3 overflow-visible pb-16">
+      <ol className="mt-3 flex flex-col gap-3 overflow-visible pb-8">
         {contracts.map((c, i) => (
           <ContractBlock key={c.id} contract={c} index={i + 1} />
         ))}
       </ol>
+      <aside className="mt-2 border-t border-ink/20 pb-16 pt-5">
+        <p className="small-caps text-[0.62rem] text-cyan">Otra lámina · no es el pliego del Yuna</p>
+        <h3 className="font-serif text-2xl text-ink">Nueva obra</h3>
+        <p className="mt-1 font-serif italic text-ink-soft">
+          Terreno vacío. Muros medidos. El valle no se toca.
+        </p>
+        <Link
+          to="/nueva"
+          className="stamp stamp-flat mt-4 inline-flex min-h-11 items-center px-4 py-2 text-[0.68rem]"
+        >
+          ABRIR NUEVA OBRA
+        </Link>
+      </aside>
     </section>
   );
 }

@@ -24,3 +24,14 @@ export const V2_UNIT_PRICES = {
 } as const;
 
 export type V2PriceKey = keyof typeof V2_UNIT_PRICES;
+
+/** Lámina vacía del editor. Metros, no unidades del valle. */
+export const V2_SHEET = { widthM: 24, heightM: 16 } as const;
+
+/** Muro de fábrica. Alto y bloque para el takeoff mínimo. */
+export const V2_MURO = {
+  altoM: 2.4,
+  espesorM: 0.2,
+  minLargoM: 0.3,
+  blockFaceM2: 0.08,
+} as const;
