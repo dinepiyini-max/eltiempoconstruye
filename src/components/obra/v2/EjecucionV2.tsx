@@ -30,6 +30,7 @@ export function EjecucionV2() {
   const done = frentes.filter((f) => f.present).every((f) => f.status === "done") && hasWork;
   const dias = diasCuadrilla(scene);
   const diasLabel = dias === 1 ? "1 día" : `${dias} días`;
+  const recuento = recuentoPiezas(scene);
 
   useEffect(() => {
     if (page !== "ejecucion") return;
@@ -66,6 +67,11 @@ export function EjecucionV2() {
           Duración est. · {diasLabel} de cuadrilla
         </p>
       ) : null}
+      {recuento ? (
+        <p className="mt-1 font-serif text-sm text-ink-soft" data-recuento>
+          {recuento}
+        </p>
+      ) : null}
       <p className="mt-1 max-w-lg font-serif text-sm italic leading-snug text-ink-soft" data-frentes-nota>
         Cimentación, estructura y albañilería: cada frente espera al anterior.
       </p>
@@ -90,7 +96,7 @@ export function EjecucionV2() {
 
       {done ? (
         <p className="mt-6 font-serif text-lg italic text-ink" data-construyo>
-          Tres frentes al 100%. Se construyó en {diasLabel} de juego.
+          Se construyó en {diasLabel} de juego.
         </p>
       ) : null}
 
@@ -133,6 +139,22 @@ export function EjecucionV2() {
       ) : null}
     </div>
   );
+}
+
+function recuentoPiezas(s: {
+  walls: unknown[];
+  openings: unknown[];
+  columns: unknown[];
+  footings: unknown[];
+  beams: unknown[];
+  slabs: unknown[];
+}): string {
+  const n =
+    s.walls.length + s.openings.length + s.columns.length + s.footings.length + s.beams.length + s.slabs.length;
+  if (n === 0) return "";
+  const bits: string[] = [`${n} ${n === 1 ? "pieza" : "piezas"}`];
+  if (s.openings.length) bits.push(`${s.openings.length} ${s.openings.length === 1 ? "vano" : "vanos"}`);
+  return bits.join(" · ");
 }
 
 function FrenteRow({ f }: { f: FrenteVista }) {

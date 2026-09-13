@@ -237,6 +237,7 @@ export function NuevaObra() {
             onClick={() => actualizarPlaca()}
             label="ACTUALIZAR PLACA"
             disabled={!canActualizar}
+            title={clock.placaId ? `Misma ${clock.placaId}` : "Cerrar lámina primero"}
           />
         </nav>
         {confirmNueva ? (

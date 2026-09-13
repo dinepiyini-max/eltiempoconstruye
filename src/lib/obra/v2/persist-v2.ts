@@ -539,7 +539,14 @@ export function resetDrawing(doc: V2Document): V2Document {
   };
 }
 
-export function drawingIsEmpty(doc: Pick<V2Document, "walls" | "openings" | "columns" | "footings" | "beams" | "slabs">): boolean {
+export function drawingIsEmpty(doc: {
+  walls: { length: number };
+  openings: { length: number };
+  columns: { length: number };
+  footings: { length: number };
+  beams: { length: number };
+  slabs: { length: number };
+}): boolean {
   return (
     doc.walls.length === 0 &&
     doc.openings.length === 0 &&
