@@ -39,6 +39,9 @@ export type V2ClockState = {
   done: FrontDone;
   rework: boolean;
   executed: boolean;
+  /** Esta lámina ya tiene placa. No clonar. */
+  sealed: boolean;
+  placaId: string | null;
 };
 
 export type FrenteVista = {
@@ -70,6 +73,8 @@ export function idleClock(): V2ClockState {
     done: { cim: 0, est: 0, alb: 0 },
     rework: false,
     executed: false,
+    sealed: false,
+    placaId: null,
   };
 }
 

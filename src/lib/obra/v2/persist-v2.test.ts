@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { createColumna, createHueco, createLosa, createMuro, createViga, createZapata } from "./geometry.ts";
+import { idleClock } from "./clock.ts";
 import {
   V2_BAK_KEY,
   V2_FORBIDDEN_KEYS,
@@ -8,8 +9,11 @@ import {
   emptyV2,
   hydrateV2,
   loadV2,
+  placaFromScene,
+  placaId,
   resetDrawing,
   saveV2,
+  sealArchive,
   snapshotV2,
 } from "./persist-v2.ts";
 
@@ -215,5 +219,63 @@ describe("v2 persist aislamiento", () => {
     assert.equal(legacy.archive[0]?.losaM2, 9);
     saveV2(legacy, storage);
     assert.equal(storage.getItem("obra.jefe"), yuna);
+  });
+
+  it("un cierre = una placa; el segundo actualiza y no clona", () => {
+    const wall = createMuro({ x: 0, y: 0 }, { x: 8, y: 0 }, "M-001");
+    const losa = createLosa(
+      [
+        { x: 0, y: 0 },
+        { x: 4, y: 0 },
+        { x: 4, y: 3 },
+        { x: 0, y: 3 },
+      ],
+      "L-001",
+    );
+    const scene = {
+      walls: [wall],
+      openings: [],
+      columns: [],
+      footings: [],
+      beams: [],
+      slabs: [losa],
+    };
+    const draft = placaFromScene(scene, { id: placaId(1), estado: "cerrada", rework: false });
+    assert.ok(draft.largoMuroM > 0);
+    assert.ok(draft.losaM2 > 0);
+    assert.equal(draft.losaM2, 12);
+    const first = sealArchive([], 1, idleClock(), draft);
+    assert.equal(first.archive.length, 1);
+    assert.equal(first.clock.sealed, true);
+    const again = sealArchive(first.archive, first.nextArchiveSeq, first.clock, {
+      ...placaFromScene(scene, { id: placaId(2), estado: "ejecutada", rework: true }),
+    });
+    assert.equal(again.archive.length, 1);
+    assert.equal(again.archive[0]?.id, "A-001");
+    assert.equal(again.archive[0]?.estado, "ejecutada");
+    const reset = resetDrawing({ ...emptyV2(), archive: again.archive, nextArchiveSeq: again.nextArchiveSeq });
+    assert.equal(reset.archive.length, 1);
+    assert.equal(reset.clock.sealed, false);
+  });
+
+  it("hidrata clones consecutivos EJECUTADA como una sola placa", () => {
+    const rec = { muros: 1, vanos: 0, columnas: 1, zapatas: 0, vigas: 0, losas: 1 };
+    const parsed = hydrateV2({
+      product: "obra.v2",
+      version: 1,
+      walls: [{ id: "M-001", a: { x: 0, y: 0 }, b: { x: 8, y: 0 }, espesor: 0.2 }],
+      columns: [{ id: "C-001", c: { x: 1, y: 1 }, lado: 0.3 }],
+      slabs: [{ id: "L-001", poly: [{ x: 0, y: 0 }, { x: 4, y: 0 }, { x: 4, y: 3 }, { x: 0, y: 3 }] }],
+      archive: [
+        { id: "A-002", closedAt: "2026-09-12", largoMuroM: 8, losaM2: 12, estimado: 10, estado: "ejecutada", recuento: rec },
+        { id: "A-003", closedAt: "2026-09-12", largoMuroM: 8, losaM2: 12, estimado: 10, estado: "ejecutada", recuento: rec },
+      ],
+    });
+    assert.ok(parsed);
+    assert.equal(parsed.archive.length, 1);
+    assert.equal(parsed.archive[0]?.id, "A-002");
+    assert.equal(parsed.archive[0]?.losaM2, 12);
+    assert.equal(parsed.clock.sealed, true);
+    assert.equal(parsed.clock.placaId, "A-002");
   });
 });

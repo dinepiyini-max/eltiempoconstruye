@@ -10,6 +10,8 @@ import {
   createMuro,
   createViga,
   createZapata,
+  losaArea,
+  muroLargo,
   type Columna,
   type Hueco,
   type HuecoKind,
@@ -19,6 +21,8 @@ import {
   type Viga,
   type Zapata,
 } from "./geometry.ts";
+import { hojaPresupuesto } from "./cost.ts";
+import { takeoffScene } from "./quantity.ts";
 import { V2_COLUMNA, V2_HUECO, V2_MURO, V2_VIGA, V2_ZAPATA } from "./tables.ts";
 import { idleClock, type V2ClockState, type V2PlacaEstado } from "./clock.ts";
 
@@ -159,6 +163,8 @@ function cloneClock(c: V2ClockState): V2ClockState {
     done: { cim: c.done.cim, est: c.done.est, alb: c.done.alb },
     rework: !!c.rework,
     executed: !!c.executed,
+    sealed: !!c.sealed || !!c.executed,
+    placaId: typeof c.placaId === "string" && c.placaId ? c.placaId : null,
   };
 }
 
@@ -295,6 +301,8 @@ function migrateClock(raw: unknown): V2ClockState {
     },
     rework: raw.rework === true,
     executed: raw.executed === true,
+    sealed: raw.sealed === true || raw.executed === true,
+    placaId: typeof raw.placaId === "string" && raw.placaId ? raw.placaId : null,
   };
 }
 
@@ -326,7 +334,7 @@ function migrateArchive(raw: unknown): V2Placa[] {
       },
     });
   }
-  return out;
+  return collapseClonedPlacas(out);
 }
 
 function seqFromIds(ids: readonly string[], prefix: RegExp, fallback: number): number {
@@ -353,7 +361,7 @@ export function hydrateV2(parsed: unknown): V2Document | null {
   const beams = migrateBeams(parsed.beams);
   const slabs = migrateSlabs(parsed.slabs);
   const archive = migrateArchive(parsed.archive);
-  return {
+  const doc: V2Document = {
     product: V2_PRODUCT,
     version: V2_DOC_VERSION,
     walls,
@@ -400,6 +408,34 @@ export function hydrateV2(parsed: unknown): V2Document | null {
     ),
     clock: migrateClock(parsed.clock),
     view: migrateView(parsed.view),
+  };
+  return inferSeal(doc);
+}
+
+function inferSeal(doc: V2Document): V2Document {
+  if (doc.clock.sealed) return doc;
+  const last = doc.archive[doc.archive.length - 1];
+  if (!last || last.estado === "abierta") return doc;
+  if (drawingIsEmpty(doc)) return doc;
+  const rec = last.recuento;
+  if (
+    rec.muros !== doc.walls.length ||
+    rec.vanos !== doc.openings.length ||
+    rec.columnas !== doc.columns.length ||
+    rec.zapatas !== doc.footings.length ||
+    rec.vigas !== doc.beams.length ||
+    rec.losas !== doc.slabs.length
+  ) {
+    return doc;
+  }
+  return {
+    ...doc,
+    clock: {
+      ...doc.clock,
+      sealed: true,
+      placaId: last.id,
+      executed: doc.clock.executed || last.estado === "ejecutada",
+    },
   };
 }
 
@@ -469,3 +505,125 @@ export function drawingIsEmpty(doc: Pick<V2Document, "walls" | "openings" | "col
 export function placaId(seq: number): string {
   return `A-${String(seq).padStart(3, "0")}`;
 }
+
+function recuentoEq(a: V2Placa["recuento"], b: V2Placa["recuento"]): boolean {
+  return (
+    a.muros === b.muros &&
+    a.vanos === b.vanos &&
+    a.columnas === b.columnas &&
+    a.zapatas === b.zapatas &&
+    a.vigas === b.vigas &&
+    a.losas === b.losas
+  );
+}
+
+/** Dos sellos seguidos del mismo plano: se queda uno. */
+function collapseClonedPlacas(list: V2Placa[]): V2Placa[] {
+  const out: V2Placa[] = [];
+  for (const p of list) {
+    const prev = out[out.length - 1];
+    if (
+      prev &&
+      prev.estado !== "abierta" &&
+      p.estado !== "abierta" &&
+      prev.estado === p.estado &&
+      prev.largoMuroM === p.largoMuroM &&
+      prev.losaM2 === p.losaM2 &&
+      recuentoEq(prev.recuento, p.recuento)
+    ) {
+      continue;
+    }
+    out.push(p);
+  }
+  return out;
+}
+
+export type SceneForPlaca = {
+  walls: readonly Muro[];
+  openings: readonly Hueco[];
+  columns: readonly Columna[];
+  footings: readonly Zapata[];
+  beams: readonly Viga[];
+  slabs: readonly Losa[];
+};
+
+/** Takeoff de la placa = geometría en este instante. */
+export function placaFromScene(
+  scene: SceneForPlaca,
+  opts: { id: string; estado: Exclude<V2PlacaEstado, "abierta">; rework: boolean; closedAt?: string },
+): V2Placa {
+  const qty = takeoffScene(scene);
+  const largoMuroM = scene.walls.reduce((n, m) => n + muroLargo(m), 0);
+  const losaM2 = scene.slabs.reduce((n, l) => n + losaArea(l), 0);
+  const hoja = hojaPresupuesto(qty, { rework: opts.rework });
+  return {
+    id: opts.id,
+    closedAt: opts.closedAt ?? new Date().toISOString(),
+    largoMuroM,
+    losaM2,
+    estimado: hoja.total,
+    estado: opts.estado,
+    recuento: {
+      muros: scene.walls.length,
+      vanos: scene.openings.length,
+      columnas: scene.columns.length,
+      zapatas: scene.footings.length,
+      vigas: scene.beams.length,
+      losas: scene.slabs.length,
+    },
+  };
+}
+
+/**
+ * Un cierre = una placa de esta lámina.
+ * Si ya está sellada, actualiza esa placa. Nunca clona.
+ */
+export function sealArchive(
+  archive: readonly V2Placa[],
+  nextArchiveSeq: number,
+  clock: V2ClockState,
+  draft: V2Placa,
+): { archive: V2Placa[]; nextArchiveSeq: number; clock: V2ClockState; id: string } {
+  const wantEjec = draft.estado === "ejecutada" || clock.executed;
+  const estado: Exclude<V2PlacaEstado, "abierta"> = wantEjec ? "ejecutada" : "cerrada";
+  const known = clock.placaId && archive.some((p) => p.id === clock.placaId) ? clock.placaId : null;
+  const existingId = known ?? (clock.sealed && archive.length ? archive[archive.length - 1]!.id : null);
+  if (existingId) {
+    const idx = archive.findIndex((p) => p.id === existingId);
+    const prev = archive[idx]!;
+    const merged: V2Placa = {
+      ...draft,
+      id: prev.id,
+      closedAt: prev.closedAt,
+      estado: prev.estado === "ejecutada" || estado === "ejecutada" ? "ejecutada" : "cerrada",
+    };
+    return {
+      archive: archive.map((p, i) => (i === idx ? merged : p)),
+      nextArchiveSeq,
+      clock: {
+        ...clock,
+        sealed: true,
+        executed: merged.estado === "ejecutada",
+        placaId: prev.id,
+        pace: merged.estado === "ejecutada" ? "pausa" : clock.pace,
+      },
+      id: prev.id,
+    };
+  }
+  const id = draft.id || placaId(nextArchiveSeq);
+  const placa: V2Placa = { ...draft, id, estado };
+  const seq = Number(String(id).replace(/^A-/, ""));
+  return {
+    archive: archive.concat([placa]),
+    nextArchiveSeq: Number.isFinite(seq) ? Math.max(nextArchiveSeq, seq + 1) : nextArchiveSeq + 1,
+    clock: {
+      ...clock,
+      sealed: true,
+      executed: estado === "ejecutada",
+      placaId: id,
+      pace: estado === "ejecutada" ? "pausa" : clock.pace,
+    },
+    id,
+  };
+}
+

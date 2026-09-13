@@ -134,9 +134,11 @@ export {
   emptyV2,
   hydrateV2,
   loadV2,
+  placaFromScene,
   placaId,
   resetDrawing,
   saveV2,
+  sealArchive,
   snapshotV2,
 } from "./persist-v2.ts";
 export type { V2Document, V2Placa, V2View } from "./persist-v2.ts";

@@ -301,7 +301,7 @@ export function NuevaObra() {
           hoja={hoja}
           archive={archive}
           abierta={
-            hasDrawing
+            hasDrawing && !clock.sealed
               ? {
                   id: "ABIERTA",
                   closedAt: "",

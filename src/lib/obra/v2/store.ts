@@ -33,7 +33,6 @@ import {
   type Zapata,
 } from "./geometry.ts";
 import { canRedo, canUndo, histInit, histPush, histRedo, histUndo, type Hist } from "./history.ts";
-import { hojaPresupuesto } from "./cost.ts";
 import {
   absenceLine,
   allPresentDone,
@@ -48,13 +47,14 @@ import {
 import {
   drawingIsEmpty,
   loadV2,
+  placaFromScene,
   placaId,
   resetDrawing,
   saveV2,
+  sealArchive,
   type V2Placa,
   type V2View,
 } from "./persist-v2.ts";
-import { takeoffScene } from "./quantity.ts";
 import { V2_COLUMNA, V2_LOSA_PLANTA, V2_MURO, V2_VIGA, V2_ZAPATA } from "./tables.ts";
 import { fitView, zoomAt } from "./draw-v2.ts";
 
@@ -176,7 +176,6 @@ function clockAfterEdit(clock: V2ClockState, scene: NuevaScene): V2ClockState {
   return {
     ...clock,
     rework: true,
-    executed: false,
     done: clampDone(clock.done, scopeFromScene(scene)),
   };
 }
@@ -228,53 +227,32 @@ function applyTick(
   const doneAll = allPresentDone(frentes);
   let archive = s.archive;
   let nextArchiveSeq = s.nextArchiveSeq;
-  let executed = s.clock.executed;
-  if (doneAll && !executed) {
-    const qty = takeoffScene({
-      walls: s.walls,
-      openings: s.openings,
-      columns: s.columns,
-      footings: s.footings,
-      beams: s.beams,
-      slabs: s.slabs,
+  let clock: V2ClockState = {
+    ...s.clock,
+    done: tick.done,
+    laminaMs: s.clock.laminaMs + tick.laminaMs,
+    pace: doneAll ? "pausa" : s.clock.pace,
+  };
+  if (doneAll && !clock.sealed) {
+    const draft = placaFromScene(s, {
+      id: placaId(nextArchiveSeq),
+      estado: "ejecutada",
+      rework: clock.rework,
     });
-    const hoja = hojaPresupuesto(qty, { rework: s.clock.rework });
-    archive = archive.concat([
-      {
-        id: placaId(nextArchiveSeq),
-        closedAt: new Date().toISOString(),
-        largoMuroM: s.walls.reduce((n, m) => n + muroLargo(m), 0),
-        losaM2: qty.losaM2,
-        estimado: hoja.total,
-        estado: "ejecutada",
-        recuento: {
-          muros: s.walls.length,
-          vanos: s.openings.length,
-          columnas: s.columns.length,
-          zapatas: s.footings.length,
-          vigas: s.beams.length,
-          losas: s.slabs.length,
-        },
-      },
-    ]);
-    nextArchiveSeq += 1;
-    executed = true;
+    const sealed = sealArchive(archive, nextArchiveSeq, clock, draft);
+    archive = sealed.archive;
+    nextArchiveSeq = sealed.nextArchiveSeq;
+    clock = { ...sealed.clock, done: tick.done, laminaMs: clock.laminaMs, pace: "pausa" };
   }
   const notice = fromResume ? absenceLine(tick.delta) ?? s.notice : s.notice;
   set({
-    clock: {
-      ...s.clock,
-      done: tick.done,
-      laminaMs: s.clock.laminaMs + tick.laminaMs,
-      pace: doneAll ? "pausa" : s.clock.pace,
-      executed,
-    },
+    clock,
     lastTick: now,
     notice,
     archive,
     nextArchiveSeq,
   });
-  if (fromResume || doneAll || Math.floor((s.clock.laminaMs + tick.laminaMs) / 400) !== Math.floor(s.clock.laminaMs / 400)) {
+  if (fromResume || doneAll || Math.floor(clock.laminaMs / 400) !== Math.floor(s.clock.laminaMs / 400)) {
     persistNow(get);
   }
 }
@@ -628,47 +606,23 @@ export const useNueva = create<NuevaStore>((set, get) => ({
     ) {
       return null;
     }
-    const qty = takeoffScene({
-      walls: s.walls,
-      openings: s.openings,
-      columns: s.columns,
-      footings: s.footings,
-      beams: s.beams,
-      slabs: s.slabs,
-    });
-    const hoja = hojaPresupuesto(qty, { rework: s.clock.rework });
     const frentes = assembleFrentes(scopeFromScene(s), s.clock.done);
     const estado = allPresentDone(frentes) || s.clock.executed ? "ejecutada" : "cerrada";
-    if (s.clock.executed) {
-      set({ page: "presupuesto", lastTick: null });
-      return s.archive[s.archive.length - 1]?.id ?? null;
-    }
-    const id = placaId(s.nextArchiveSeq);
-    const placa: V2Placa = {
-      id,
-      closedAt: new Date().toISOString(),
-      largoMuroM: s.walls.reduce((n, m) => n + muroLargo(m), 0),
-      losaM2: qty.losaM2,
-      estimado: hoja.total,
+    const draft = placaFromScene(s, {
+      id: placaId(s.nextArchiveSeq),
       estado,
-      recuento: {
-        muros: s.walls.length,
-        vanos: s.openings.length,
-        columnas: s.columns.length,
-        zapatas: s.footings.length,
-        vigas: s.beams.length,
-        losas: s.slabs.length,
-      },
-    };
+      rework: s.clock.rework,
+    });
+    const sealed = sealArchive(s.archive, s.nextArchiveSeq, s.clock, draft);
     set({
-      archive: s.archive.concat([placa]),
-      nextArchiveSeq: s.nextArchiveSeq + 1,
+      archive: sealed.archive,
+      nextArchiveSeq: sealed.nextArchiveSeq,
+      clock: sealed.clock,
       page: "presupuesto",
       lastTick: null,
-      clock: estado === "ejecutada" ? { ...s.clock, executed: true, pace: "pausa" } : s.clock,
     });
     persistNow(get);
-    return id;
+    return sealed.id;
   },
 
   iniciarEjecucion: () => {
