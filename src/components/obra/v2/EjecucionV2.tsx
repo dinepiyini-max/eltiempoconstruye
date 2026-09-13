@@ -6,6 +6,7 @@ import {
   scopeFromScene,
   type FrenteVista,
 } from "@/lib/obra/v2/clock";
+import { diasCuadrilla } from "@/lib/obra/v2/cost";
 import { useNueva } from "@/lib/obra/v2/store";
 
 export function EjecucionV2() {
@@ -23,12 +24,12 @@ export function EjecucionV2() {
   const tickClock = useNueva((s) => s.tickClock);
   const resumeClock = useNueva((s) => s.resumeClock);
 
-  const frentes = assembleFrentes(
-    scopeFromScene({ walls, openings, columns, footings, beams, slabs }),
-    clock.done,
-  );
+  const scene = { walls, openings, columns, footings, beams, slabs };
+  const frentes = assembleFrentes(scopeFromScene(scene), clock.done);
   const hasWork = frentes.some((f) => f.present);
   const done = frentes.filter((f) => f.present).every((f) => f.status === "done") && hasWork;
+  const dias = diasCuadrilla(scene);
+  const diasLabel = dias === 1 ? "1 día" : `${dias} días`;
 
   useEffect(() => {
     if (page !== "ejecucion") return;
@@ -60,6 +61,14 @@ export function EjecucionV2() {
       <p className="small-caps mt-2 text-[0.62rem] text-ink-soft">
         {clock.running ? (clock.pace === "normal" ? "NORMAL" : "PAUSA") : "PAUSA hasta INICIAR EJECUCIÓN"}
       </p>
+      {hasWork ? (
+        <p className="mt-3 font-serif text-lg text-ink" data-duracion data-dias={dias}>
+          Duración est. · {diasLabel} de cuadrilla
+        </p>
+      ) : null}
+      <p className="mt-1 max-w-lg font-serif text-sm italic leading-snug text-ink-soft" data-frentes-nota>
+        Cimentación, estructura y albañilería: cada frente espera al anterior.
+      </p>
 
       {notice ? (
         <p data-v2-notice className="mt-4 border border-cyan/40 bg-paper px-3 py-2 font-serif text-sm italic text-cyan">
@@ -80,7 +89,9 @@ export function EjecucionV2() {
       </ul>
 
       {done ? (
-        <p className="mt-6 font-serif text-lg italic text-ink">Tres frentes al 100%. Placa EJECUTADA.</p>
+        <p className="mt-6 font-serif text-lg italic text-ink" data-construyo>
+          Tres frentes al 100%. Se construyó en {diasLabel} de juego.
+        </p>
       ) : null}
 
       {!clock.running ? (

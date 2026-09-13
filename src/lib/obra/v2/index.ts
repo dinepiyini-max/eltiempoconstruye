@@ -13,9 +13,11 @@
  */
 export {
   V2_COLUMNA,
+  V2_CUADRILLA,
   V2_HUECO,
   V2_LOSA_PLANTA,
   V2_MURO,
+  V2_PIEZAS_CAP,
   V2_RETRABAJO,
   V2_SCALE_M_PER_UNIT,
   V2_SECTIONS,
@@ -107,8 +109,8 @@ export {
 } from "./quantity.ts";
 export type { Takeoff, TakeoffMuro, TakeoffScene } from "./quantity.ts";
 
-export { hojaPresupuesto, presupuesto } from "./cost.ts";
-export type { CostItem, HojaLinea, HojaPresupuesto, Presupuesto } from "./cost.ts";
+export { diasCuadrilla, hojaPresupuesto, piezasDeEscena, presupuesto } from "./cost.ts";
+export type { CostItem, HojaLinea, HojaPresupuesto, PiezaKind, PiezaLinea, Presupuesto } from "./cost.ts";
 
 export {
   FRENTE_LABEL,
@@ -147,6 +149,7 @@ export {
   sealArchive,
   snapshotV2,
   dibujoFromPlaca,
+  actualizarPlaca,
   V2_ARCHIVE_CAP,
 } from "./persist-v2.ts";
 export type { V2Document, V2Dibujo, V2Placa, V2View } from "./persist-v2.ts";

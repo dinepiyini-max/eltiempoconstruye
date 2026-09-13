@@ -1,18 +1,22 @@
 import { formatInt } from "@/lib/obra/format";
-import type { HojaPresupuesto } from "@/lib/obra/v2/cost";
+import type { HojaPresupuesto, PiezaLinea } from "@/lib/obra/v2/cost";
 import type { V2Placa } from "@/lib/obra/v2/persist-v2";
 import { formatM2, formatMeters } from "@/lib/obra/v2/geometry";
 
 export function PresupuestoV2({
   hoja,
+  piezas,
   archive,
   enCurso,
   onAbrir,
+  onPieza,
 }: {
   hoja: HojaPresupuesto;
+  piezas: PiezaLinea[];
   archive: V2Placa[];
   enCurso?: boolean;
   onAbrir?: (id: string) => void;
+  onPieza?: (id: string) => void;
 }) {
   const selladas = archive.filter((p) => p.estado === "cerrada" || p.estado === "ejecutada");
   return (
@@ -58,6 +62,33 @@ export function PresupuestoV2({
         <p data-retrabajo className="stamp stamp-flat mt-3 inline-block px-2.5 py-1.5 text-[0.62rem]">
           RETRABAJO
         </p>
+      ) : null}
+
+      {piezas.length ? (
+        <section className="mt-10" data-v2-piezas data-piezas-count={piezas.length}>
+          <p className="small-caps text-[0.62rem] text-cyan">Piezas</p>
+          <ul className="mt-3 divide-y divide-rule/70 border-y border-rule/70">
+            {piezas.map((pz) => (
+              <li key={pz.id}>
+                <button
+                  type="button"
+                  data-pieza={pz.id}
+                  data-pieza-kind={pz.kind}
+                  onClick={() => onPieza?.(pz.id)}
+                  className="flex w-full min-h-11 items-baseline justify-between gap-3 py-2.5 text-left"
+                >
+                  <span className="small-caps text-[0.7rem] tracking-[0.12em] text-ink">{pz.id}</span>
+                  <span className="flex-1 font-serif text-sm text-ink-soft">{pz.medida}</span>
+                  <span className="font-sans text-lg tabular-nums text-ink">{formatInt(pz.parcial)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 max-w-lg font-serif text-sm italic leading-snug text-ink-soft" data-piezas-nota>
+            Las piezas ilustran. Los vanos restan block al muro; no se suman otra vez. El total de la hoja no es la
+            suma de estas líneas.
+          </p>
+        </section>
       ) : null}
 
       <section className="mt-10" data-v2-archivo data-abierta="0">

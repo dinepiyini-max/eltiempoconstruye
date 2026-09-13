@@ -680,3 +680,37 @@ export function sealArchive(
   };
 }
 
+/**
+ * Reescribe la placa ya sellada (misma A-00N). No clona. No toca nextArchiveSeq.
+ * Cambia dibujo + takeoff + estimado + recuento. El estado sube a ejecutada si ahora lo es.
+ */
+export function actualizarPlaca(
+  archive: readonly V2Placa[],
+  clock: V2ClockState,
+  scene: SceneForPlaca,
+  opts: { rework: boolean; executed?: boolean } = { rework: false },
+): { archive: V2Placa[]; clock: V2ClockState; id: string } | null {
+  const id = clock.placaId && archive.some((p) => p.id === clock.placaId) ? clock.placaId : null;
+  if (!id) return null;
+  if (drawingIsEmpty(scene)) return null;
+  const prev = archive.find((p) => p.id === id)!;
+  const wantEjec = opts.executed === true || clock.executed || prev.estado === "ejecutada";
+  const estado: Exclude<V2PlacaEstado, "abierta"> = wantEjec ? "ejecutada" : prev.estado === "abierta" ? "cerrada" : prev.estado;
+  const next = placaFromScene(scene, {
+    id,
+    estado,
+    rework: opts.rework,
+    closedAt: prev.closedAt,
+  });
+  return {
+    archive: archive.map((p) => (p.id === id ? next : p)),
+    clock: {
+      ...clock,
+      sealed: true,
+      placaId: id,
+      executed: wantEjec || clock.executed,
+    },
+    id,
+  };
+}
+

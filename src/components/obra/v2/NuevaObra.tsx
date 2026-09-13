@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ModeTabs } from "@/components/obra/ModeTabs";
 import { formatInt } from "@/lib/obra/format";
-import { hojaPresupuesto } from "@/lib/obra/v2/cost";
+import { hojaPresupuesto, piezasDeEscena } from "@/lib/obra/v2/cost";
 import { formatM2, formatMeters, muroLargo, parseMeters, polygonArea, vigaLargo } from "@/lib/obra/v2/geometry";
 import { laminaAbierta } from "@/lib/obra/v2/clock";
 import { panelCantidad, type PanelCantidad } from "@/lib/obra/v2/panel";
@@ -41,7 +41,9 @@ export function NuevaObra() {
   const archive = useNueva((s) => s.archive);
   const nuevaLamina = useNueva((s) => s.nuevaLamina);
   const cerrarLamina = useNueva((s) => s.cerrarLamina);
+  const actualizarPlaca = useNueva((s) => s.actualizarPlaca);
   const reabrirPlaca = useNueva((s) => s.reabrirPlaca);
+  const select = useNueva((s) => s.select);
   const setMuroLargo = useNueva((s) => s.setMuroLargo);
   const setLosaArea = useNueva((s) => s.setLosaArea);
   const clock = useNueva((s) => s.clock);
@@ -129,9 +131,11 @@ export function NuevaObra() {
   const sceneQty = takeoffScene({ walls, openings, columns, footings, beams, slabs });
   const panel = panelCantidad({ walls, openings, columns, footings, beams, slabs }, selectedId);
   const hoja = hojaPresupuesto(sceneQty, { rework: clock.rework });
+  const piezas = piezasDeEscena({ walls, openings, columns, footings, beams, slabs });
   const hasDrawing = walls.length + openings.length + columns.length + footings.length + beams.length + slabs.length > 0;
   const enCurso = laminaAbierta(clock);
   const canCerrar = hasDrawing && enCurso;
+  const canActualizar = hasDrawing && !enCurso && !!clock.placaId;
 
   useEffect(() => {
     if (panel.kind === "muro" && panel.largo != null) setLargoTxt(panel.largo.toFixed(2));
@@ -228,6 +232,12 @@ export function NuevaObra() {
           <span className="mx-1 hidden h-4 w-px bg-rule/80 sm:inline-block" />
           <ToolBtn on={false} onClick={() => setConfirmNueva(true)} label="NUEVA LÁMINA" />
           <ToolBtn on={false} onClick={() => cerrarLamina()} label="CERRAR LÁMINA" disabled={!canCerrar} />
+          <ToolBtn
+            on={false}
+            onClick={() => actualizarPlaca()}
+            label="ACTUALIZAR PLACA"
+            disabled={!canActualizar}
+          />
         </nav>
         {confirmNueva ? (
           <div
@@ -319,7 +329,18 @@ export function NuevaObra() {
       </header>
 
       {page === "presupuesto" ? (
-        <PresupuestoV2 hoja={hoja} archive={archive} enCurso={enCurso} onAbrir={tryAbrir} />
+        <PresupuestoV2
+          hoja={hoja}
+          piezas={piezas}
+          archive={archive}
+          enCurso={enCurso}
+          onAbrir={tryAbrir}
+          onPieza={(id) => {
+            select(id);
+            setTool("seleccionar");
+            setPage("lamina");
+          }}
+        />
       ) : page === "ejecucion" ? (
         <EjecucionV2 />
       ) : (

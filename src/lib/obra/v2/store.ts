@@ -57,6 +57,7 @@ import {
   resetDrawing,
   saveV2,
   sealArchive,
+  actualizarPlaca as writePlaca,
   type V2Placa,
   type V2View,
 } from "./persist-v2.ts";
@@ -128,6 +129,7 @@ type NuevaStore = {
   snap: (raw: Pt, origin: Pt | null) => { point: Pt; kind: SnapKind };
   nuevaLamina: () => void;
   cerrarLamina: () => string | null;
+  actualizarPlaca: () => string | null;
   reabrirPlaca: (id: string, opts?: { force?: boolean }) => "ok" | "confirm" | "missing";
   iniciarEjecucion: () => void;
   setPace: (pace: V2Pace) => void;
@@ -664,6 +666,36 @@ export const useNueva = create<NuevaStore>((set, get) => ({
     });
     persistNow(get);
     return sealed.id;
+  },
+
+  actualizarPlaca: () => {
+    const s = get();
+    if (
+      drawingIsEmpty({
+        walls: s.walls,
+        openings: s.openings,
+        columns: s.columns,
+        footings: s.footings,
+        beams: s.beams,
+        slabs: s.slabs,
+      })
+    ) {
+      return null;
+    }
+    const frentes = assembleFrentes(scopeFromScene(s), s.clock.done);
+    const next = writePlaca(s.archive, s.clock, s, {
+      rework: s.clock.rework,
+      executed: s.clock.executed || allPresentDone(frentes),
+    });
+    if (!next) return null;
+    set({
+      archive: next.archive,
+      clock: next.clock,
+      page: "presupuesto",
+      lastTick: null,
+    });
+    persistNow(get);
+    return next.id;
   },
 
   reabrirPlaca: (id, opts) => {

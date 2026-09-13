@@ -17,6 +17,7 @@ import {
   snapshotV2,
   V2_ARCHIVE_CAP,
   dibujoFromPlaca,
+  actualizarPlaca,
 } from "./persist-v2.ts";
 
 class Mem {
@@ -326,5 +327,39 @@ describe("v2 persist aislamiento", () => {
     assert.equal(archive.length, 10);
     assert.equal(archive[0]?.id, "A-002");
     assert.equal(archive[9]?.id, "A-011");
+  });
+
+  it("actualizar placa reescribe la misma A-00N; no clona", () => {
+    const wall = createMuro({ x: 0, y: 0 }, { x: 8, y: 0 }, "M-001");
+    const extra = createMuro({ x: 0, y: 2 }, { x: 6, y: 2 }, "M-002");
+    const scene1 = {
+      walls: [wall],
+      openings: [],
+      columns: [],
+      footings: [],
+      beams: [],
+      slabs: [],
+    };
+    const draft = placaFromScene(scene1, { id: placaId(1), estado: "cerrada", rework: false });
+    const sealed = sealArchive([], 1, idleClock(), draft);
+    assert.equal(sealed.archive.length, 1);
+    const scene2 = { ...scene1, walls: [wall, extra] };
+    const upd = actualizarPlaca(sealed.archive, sealed.clock, scene2, { rework: false });
+    assert.ok(upd);
+    assert.equal(upd!.id, "A-001");
+    assert.equal(upd!.archive.length, 1);
+    assert.equal(upd!.archive[0]?.id, "A-001");
+    assert.equal(upd!.archive[0]?.recuento.muros, 2);
+    assert.equal(upd!.archive[0]?.dibujo?.walls.length, 2);
+    assert.equal(upd!.clock.placaId, "A-001");
+    assert.equal(upd!.clock.sealed, true);
+    assert.equal(upd!.archive[0]?.estado, "cerrada");
+    const again = sealArchive(upd!.archive, sealed.nextArchiveSeq, upd!.clock, {
+      ...placaFromScene(scene2, { id: placaId(2), estado: "cerrada", rework: false }),
+    });
+    assert.equal(again.archive.length, 1);
+    assert.equal(again.archive[0]?.id, "A-001");
+    const empty = actualizarPlaca(upd!.archive, upd!.clock, { ...scene1, walls: [] }, { rework: false });
+    assert.equal(empty, null);
   });
 });

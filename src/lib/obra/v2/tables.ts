@@ -79,3 +79,14 @@ export const V2_LOSA_PLANTA = {
 
 /** Reloj de lámina. No es siteMinutes. */
 export const V2_RETRABAJO = { factor: 0.08 } as const;
+
+/** Días de cuadrilla. Juego, no ERP. N = f(m³ + m muro + m² + vanos). */
+export const V2_CUADRILLA = {
+  hormigonM3PerDia: 2,
+  muroMPerDia: 5,
+  losaM2PerDia: 10,
+  huecoDias: 0.5,
+} as const;
+
+/** Piezas en PRESUPUESTO. El total de la hoja no suma estas líneas. */
+export const V2_PIEZAS_CAP = 40;
