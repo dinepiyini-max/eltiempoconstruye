@@ -54,8 +54,10 @@ export {
   lengthMeters,
   losaArea,
   measure,
+  muroHiladas,
   muroId,
   muroLargo,
+  parseMeters,
   muroMid,
   muroParts,
   muroPoly,
@@ -69,6 +71,7 @@ export {
   polylineLengthMeters,
   rectPoly,
   sampleHeights,
+  scaleMuroFromStart,
   snapDraft,
   snapZapataCenter,
   squarePoly,
@@ -142,5 +145,7 @@ export {
   saveV2,
   sealArchive,
   snapshotV2,
+  dibujoFromPlaca,
+  V2_ARCHIVE_CAP,
 } from "./persist-v2.ts";
-export type { V2Document, V2Placa, V2View } from "./persist-v2.ts";
+export type { V2Document, V2Dibujo, V2Placa, V2View } from "./persist-v2.ts";

@@ -15,6 +15,8 @@ import {
   saveV2,
   sealArchive,
   snapshotV2,
+  V2_ARCHIVE_CAP,
+  dibujoFromPlaca,
 } from "./persist-v2.ts";
 
 class Mem {
@@ -177,6 +179,7 @@ describe("v2 persist aislamiento", () => {
       estimado: 9000,
       estado: "cerrada" as const,
       recuento: { muros: 1, vanos: 0, columnas: 0, zapatas: 0, vigas: 0, losas: 1 },
+      dibujo: null,
     };
     const doc = {
       ...emptyV2(),
@@ -279,5 +282,49 @@ describe("v2 persist aislamiento", () => {
     assert.equal(parsed.archive[0]?.losaM2, 12);
     assert.equal(parsed.clock.sealed, true);
     assert.equal(parsed.clock.placaId, "A-002");
+  });
+
+  it("placa guarda dibujo; reabrir recupera el muro", () => {
+    const wall = createMuro({ x: 0, y: 0 }, { x: 8, y: 0 }, "M-001");
+    const scene = {
+      walls: [wall],
+      openings: [],
+      columns: [],
+      footings: [],
+      beams: [],
+      slabs: [],
+    };
+    const draft = placaFromScene(scene, { id: placaId(1), estado: "cerrada", rework: false });
+    assert.equal(draft.dibujo?.walls[0]?.id, "M-001");
+    assert.equal(draft.dibujo?.walls[0]?.b.x, 8);
+    const loaded = dibujoFromPlaca(draft);
+    assert.equal(loaded?.walls.length, 1);
+    assert.equal(loaded?.walls[0]?.id, "M-001");
+    const sealed = sealArchive([], 1, idleClock(), draft);
+    assert.equal(sealed.archive[0]?.dibujo?.walls[0]?.id, "M-001");
+  });
+
+  it("tope 10 placas; la 11ª desplaza la más vieja", () => {
+    const wall = createMuro({ x: 0, y: 0 }, { x: 8, y: 0 }, "M-001");
+    const scene = {
+      walls: [wall],
+      openings: [],
+      columns: [],
+      footings: [],
+      beams: [],
+      slabs: [],
+    };
+    let archive: ReturnType<typeof placaFromScene>[] = [];
+    let seq = 1;
+    for (let i = 0; i < 11; i++) {
+      const draft = placaFromScene(scene, { id: placaId(seq), estado: "cerrada", rework: false });
+      const r = sealArchive(archive, seq, idleClock(), draft);
+      archive = r.archive;
+      seq = r.nextArchiveSeq;
+    }
+    assert.equal(V2_ARCHIVE_CAP, 10);
+    assert.equal(archive.length, 10);
+    assert.equal(archive[0]?.id, "A-002");
+    assert.equal(archive[9]?.id, "A-011");
   });
 });

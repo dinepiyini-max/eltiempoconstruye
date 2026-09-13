@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { ModeTabs } from "@/components/obra/ModeTabs";
 import { formatInt } from "@/lib/obra/format";
 import { hojaPresupuesto } from "@/lib/obra/v2/cost";
-import { formatM2, formatMeters, muroLargo, polygonArea, vigaLargo } from "@/lib/obra/v2/geometry";
+import { formatM2, formatMeters, muroLargo, parseMeters, polygonArea, vigaLargo } from "@/lib/obra/v2/geometry";
 import { laminaAbierta } from "@/lib/obra/v2/clock";
-import { panelCantidad } from "@/lib/obra/v2/panel";
+import { panelCantidad, type PanelCantidad } from "@/lib/obra/v2/panel";
 import { takeoffScene } from "@/lib/obra/v2/quantity";
 import { useNueva, type V2Tool } from "@/lib/obra/v2/store";
 import { NuevaCanvas } from "./NuevaCanvas";
@@ -41,8 +41,12 @@ export function NuevaObra() {
   const archive = useNueva((s) => s.archive);
   const nuevaLamina = useNueva((s) => s.nuevaLamina);
   const cerrarLamina = useNueva((s) => s.cerrarLamina);
+  const reabrirPlaca = useNueva((s) => s.reabrirPlaca);
+  const setMuroLargo = useNueva((s) => s.setMuroLargo);
   const clock = useNueva((s) => s.clock);
   const [confirmNueva, setConfirmNueva] = useState(false);
+  const [confirmAbrir, setConfirmAbrir] = useState<string | null>(null);
+  const [largoTxt, setLargoTxt] = useState("");
 
   useEffect(() => {
     hydrate();
@@ -70,6 +74,8 @@ export function NuevaObra() {
       if (e.key === "Escape") {
         setDraft(null);
         setPolyDraft([]);
+        setConfirmNueva(false);
+        setConfirmAbrir(null);
         return;
       }
       if (e.key === "Delete" || e.key === "Backspace") {
@@ -125,6 +131,10 @@ export function NuevaObra() {
   const enCurso = laminaAbierta(clock);
   const canCerrar = hasDrawing && enCurso;
 
+  useEffect(() => {
+    if (panel.kind === "muro" && panel.largo != null) setLargoTxt(panel.largo.toFixed(2));
+  }, [panel.kind, panel.title, panel.largo]);
+
   const cota = draft
     ? formatMeters(muroLargo(draft))
     : polyDraft.length >= 3
@@ -157,6 +167,21 @@ export function NuevaObra() {
                 : tool === "losa"
                   ? "Arrastra un rectángulo, o 3+ clics y cierra en el primero."
                   : "Clic, clic — o arrastra. Snap: horz / vert / esquina.";
+
+  const tryAbrir = (id: string) => {
+    const r = reabrirPlaca(id);
+    if (r === "confirm") setConfirmAbrir(id);
+  };
+
+  const commitLargo = () => {
+    if (panel.kind !== "muro" || !selectedId) return;
+    const n = parseMeters(largoTxt);
+    if (n == null) {
+      if (panel.largo != null) setLargoTxt(panel.largo.toFixed(2));
+      return;
+    }
+    setMuroLargo(selectedId, n);
+  };
 
   return (
     <div className="flex min-h-dvh flex-col overflow-hidden bg-paper text-ink" data-obra="nueva">
@@ -194,18 +219,45 @@ export function NuevaObra() {
         {confirmNueva ? (
           <div
             data-confirm-nueva
-            className="mt-2 flex flex-wrap items-center gap-2 border border-ink/30 bg-paper px-3 py-2"
+            className="mt-2 flex flex-col gap-2 border border-ink/30 bg-paper px-3 py-2"
           >
-            <p className="font-serif text-sm italic text-ink">¿Borrar el plano V2? El Valle no se toca.</p>
-            <ToolBtn
-              on={false}
-              onClick={() => {
-                nuevaLamina();
-                setConfirmNueva(false);
-              }}
-              label="BORRAR PLANO"
-            />
-            <ToolBtn on={false} onClick={() => setConfirmNueva(false)} label="NO" />
+            <p className="font-serif text-sm text-ink">¿Empezar lámina nueva?</p>
+            <p className="font-serif text-sm italic text-ink-soft">
+              Se limpia el tablero. Las placas ya cerradas se quedan en Archivo.
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <ToolBtn on={false} onClick={() => setConfirmNueva(false)} label="Seguir aquí" />
+              <ToolBtn
+                on={false}
+                onClick={() => {
+                  nuevaLamina();
+                  setConfirmNueva(false);
+                }}
+                label="Nueva lámina"
+              />
+            </div>
+          </div>
+        ) : null}
+        {confirmAbrir ? (
+          <div
+            data-confirm-abrir
+            className="mt-2 flex flex-col gap-2 border border-ink/30 bg-paper px-3 py-2"
+          >
+            <p className="font-serif text-sm text-ink">¿Abrir {confirmAbrir}? Hay un dibujo sin cerrar.</p>
+            <p className="font-serif text-sm italic text-ink-soft">
+              Se limpia el tablero en curso. Las placas se quedan en Archivo.
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <ToolBtn on={false} onClick={() => setConfirmAbrir(null)} label="Seguir aquí" />
+              <ToolBtn
+                on={false}
+                onClick={() => {
+                  reabrirPlaca(confirmAbrir, { force: true });
+                  setConfirmAbrir(null);
+                }}
+                label="Abrir placa"
+              />
+            </div>
           </div>
         ) : null}
         {page === "lamina" ? (
@@ -254,7 +306,7 @@ export function NuevaObra() {
       </header>
 
       {page === "presupuesto" ? (
-        <PresupuestoV2 hoja={hoja} archive={archive} enCurso={enCurso} />
+        <PresupuestoV2 hoja={hoja} archive={archive} enCurso={enCurso} onAbrir={tryAbrir} />
       ) : page === "ejecucion" ? (
         <EjecucionV2 />
       ) : (
@@ -269,19 +321,13 @@ export function NuevaObra() {
           >
             <p className="small-caps text-[0.62rem] text-cyan">Cantidad</p>
             <h2 className="font-serif text-2xl text-ink">{panel.title}</h2>
-            <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-4 md:grid-cols-1">
-              <QtyBig k="Longitud" v={dash(panel.largo, formatMeters)} />
-              <QtyBig k="Área neta" v={dash(panel.areaNeta, formatM2)} />
-              <QtyBig
-                k="Blocks"
-                v={panel.blocks == null ? "—" : String(panel.blocks)}
-                sub={panel.blocks != null && panel.blocksDelta < 0 ? `−${-panel.blocksDelta} blocks` : undefined}
+            <dl key={`${panel.kind}:${panel.title}`} className="mt-3 grid grid-cols-2 gap-x-4 gap-y-4 md:grid-cols-1">
+              <PanelFields
+                panel={panel}
+                largoTxt={largoTxt}
+                onLargoTxt={setLargoTxt}
+                onLargoCommit={commitLargo}
               />
-              <QtyBig k="Hormigón" v={dash(panel.hormigonM3, (n) => `${n.toFixed(2)} m³`)} />
-              <QtyBig k="Acero est." v={dash(panel.aceroT, (n) => `${n.toFixed(2)} t`)} />
-              {panel.losaM2 != null && panel.losaM2 > 0 ? <QtyBig k="Losa" v={formatM2(panel.losaM2)} /> : null}
-              {panel.huecoAncho != null ? <QtyBig k="Ancho" v={formatMeters(panel.huecoAncho)} /> : null}
-              {panel.parentWallId ? <QtyBig k="Muro padre" v={panel.parentWallId} /> : null}
             </dl>
             <p className="mt-4 small-caps text-[0.55rem] text-ink-soft">Estimado RD$</p>
             <p className="font-sans text-3xl tabular-nums leading-none text-ink" data-cost>
@@ -291,6 +337,126 @@ export function NuevaObra() {
           </aside>
         </div>
       )}
+    </div>
+  );
+}
+
+function PanelFields({
+  panel,
+  largoTxt,
+  onLargoTxt,
+  onLargoCommit,
+}: {
+  panel: PanelCantidad;
+  largoTxt: string;
+  onLargoTxt: (v: string) => void;
+  onLargoCommit: () => void;
+}) {
+  if (panel.kind === "muro") {
+    return (
+      <>
+        <LargoEdit value={largoTxt} onChange={onLargoTxt} onCommit={onLargoCommit} />
+        <QtyBig k="Alto" v={dash(panel.alto, formatMeters)} />
+        <QtyBig k="Hiladas" v={panel.hiladas == null ? "—" : String(panel.hiladas)} />
+        <QtyBig k="Área neta" v={dash(panel.areaNeta, formatM2)} />
+        <QtyBig
+          k="Blocks"
+          v={panel.blocks == null ? "—" : String(panel.blocks)}
+          sub={panel.blocks != null && panel.blocksDelta < 0 ? `−${-panel.blocksDelta} blocks` : undefined}
+        />
+        <QtyBig k="Vanos" v={panel.vanos == null ? "—" : String(panel.vanos)} />
+        <QtyBig k="Hormigón" v={dash(panel.hormigonM3, (n) => `${n.toFixed(2)} m³`)} />
+        <QtyBig k="Acero est." v={dash(panel.aceroT, (n) => `${n.toFixed(2)} t`)} />
+      </>
+    );
+  }
+  if (panel.kind === "losa") {
+    return (
+      <>
+        <QtyBig k="Longitud" v="—" />
+        <QtyBig k="Blocks" v="—" />
+        <QtyBig k="Losa" v={dash(panel.losaM2, formatM2)} />
+        <QtyBig k="Espesor" v={dash(panel.espesor, formatMeters)} />
+        <QtyBig k="Hormigón" v={dash(panel.hormigonM3, (n) => `${n.toFixed(2)} m³`)} />
+        <QtyBig k="Acero est." v={dash(panel.aceroT, (n) => `${n.toFixed(2)} t`)} />
+      </>
+    );
+  }
+  if (panel.kind === "hueco") {
+    return (
+      <>
+        <QtyBig k="Ancho" v={dash(panel.huecoAncho, formatMeters)} />
+        <QtyBig k="Muro padre" v={panel.parentWallId ?? "—"} />
+        {panel.blocksDelta < 0 ? (
+          <QtyBig k="−blocks" v={`−${-panel.blocksDelta}`} />
+        ) : null}
+      </>
+    );
+  }
+  if (panel.kind === "columna" || panel.kind === "zapata") {
+    return (
+      <>
+        <QtyBig k="Sección" v={panel.seccion ?? "—"} />
+        <QtyBig k="Hormigón" v={dash(panel.hormigonM3, (n) => `${n.toFixed(2)} m³`)} />
+        <QtyBig k="Acero est." v={dash(panel.aceroT, (n) => `${n.toFixed(2)} t`)} />
+      </>
+    );
+  }
+  if (panel.kind === "viga") {
+    return (
+      <>
+        <QtyBig k="Longitud" v={dash(panel.largo, formatMeters)} />
+        <QtyBig k="Sección" v={panel.seccion ?? "—"} />
+        <QtyBig k="Hormigón" v={dash(panel.hormigonM3, (n) => `${n.toFixed(2)} m³`)} />
+        <QtyBig k="Acero est." v={dash(panel.aceroT, (n) => `${n.toFixed(2)} t`)} />
+      </>
+    );
+  }
+  return (
+    <>
+      <QtyBig k="Longitud" v={dash(panel.largo, formatMeters)} />
+      <QtyBig k="Área neta" v={dash(panel.areaNeta, formatM2)} />
+      <QtyBig
+        k="Blocks"
+        v={panel.blocks == null ? "—" : String(panel.blocks)}
+        sub={panel.blocks != null && panel.blocksDelta < 0 ? `−${-panel.blocksDelta} blocks` : undefined}
+      />
+      <QtyBig k="Hormigón" v={dash(panel.hormigonM3, (n) => `${n.toFixed(2)} m³`)} />
+      <QtyBig k="Acero est." v={dash(panel.aceroT, (n) => `${n.toFixed(2)} t`)} />
+      {panel.losaM2 != null && panel.losaM2 > 0 ? <QtyBig k="Losa" v={formatM2(panel.losaM2)} /> : null}
+    </>
+  );
+}
+
+function LargoEdit({
+  value,
+  onChange,
+  onCommit,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onCommit: () => void;
+}) {
+  return (
+    <div>
+      <dt className="small-caps text-[0.62rem] text-ink-soft">Longitud</dt>
+      <dd>
+        <input
+          data-largo-edit
+          inputMode="decimal"
+          aria-label="Largo del muro en metros"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={onCommit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              (e.target as HTMLInputElement).blur();
+            }
+          }}
+          className="w-full min-h-11 border-b border-ink/40 bg-transparent font-sans text-3xl tabular-nums leading-none tracking-tight text-ink outline-none"
+        />
+      </dd>
     </div>
   );
 }

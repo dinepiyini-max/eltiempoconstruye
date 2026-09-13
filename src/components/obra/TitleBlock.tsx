@@ -53,8 +53,8 @@ export function TitleBlock() {
     <header className="relative z-20 border-b border-rule/80 bg-paper/90 px-3 py-2 sm:px-5">
       <ResumeBanner />
       <CrecidaAviso />
-      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2">
-        <div className="min-w-0">
+      <div className="flex flex-col gap-y-2 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-x-6">
+        <div className="min-w-0 w-full sm:min-w-[12rem] sm:flex-1">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="font-serif text-3xl font-semibold tracking-[0.18em] text-ink sm:text-4xl">OBRA</h1>
             <p
@@ -69,14 +69,19 @@ export function TitleBlock() {
           <p className="small-caps mt-0.5 text-[0.55rem] tracking-[0.12em] text-cyan">
             {CARGO} · {PROYECTO} · {MANDANTE}
           </p>
-          <p data-obra-pliego-v1 className="mt-0.5 max-w-xl font-serif text-sm leading-snug text-ink">
+          <p data-obra-pliego-v1 className="mt-0.5 max-w-xl whitespace-normal break-words font-serif text-sm leading-snug text-ink">
             {PLIEGO_V1_LINE}
           </p>
-          <p className="mt-0.5 max-w-xl font-serif text-sm italic text-ink-soft sm:text-[0.95rem]">{TESIS}</p>
+          <p
+            data-obra-tesis
+            className="mt-0.5 max-w-xl whitespace-normal break-words font-serif text-sm italic leading-snug text-ink-soft sm:text-[0.95rem]"
+          >
+            {TESIS}
+          </p>
           <p className="mt-1 small-caps text-[0.5rem] tracking-[0.12em] text-ink-soft">{GLOSS.sitio}</p>
         </div>
 
-        <nav className="flex flex-wrap items-center gap-1 pt-1" aria-label="Hojas">
+        <nav className="flex w-full flex-wrap items-center gap-1 pt-1 sm:w-auto sm:shrink-0" aria-label="Hojas">
           {TABS.map((t) => {
             const on = page === t.id;
             return (

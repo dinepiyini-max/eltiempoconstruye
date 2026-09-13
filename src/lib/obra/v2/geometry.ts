@@ -144,6 +144,47 @@ export function muroLargo(m: Pick<Muro, "a" | "b">): number {
   return lengthMeters(m.a, m.b);
 }
 
+export function muroHiladas(altoM: number = V2_MURO.altoM): number {
+  const h = V2_MURO.hiladaM;
+  if (h <= 0) return 1;
+  return Math.max(1, Math.round(altoM / h));
+}
+
+/** Lee "8", "8.00" o "8,00". */
+export function parseMeters(raw: string): number | null {
+  const n = Number(String(raw).trim().replace(",", "."));
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n;
+}
+
+/**
+ * Escala el muro desde el arranque `a`. Snap H/V si el trazo ya está en eje.
+ * 14.76 → 8.00 deja `a` y mueve `b`.
+ */
+export function scaleMuroFromStart(m: Muro, largoM: number, angleDeg: number = SNAP_ANGLE_DEG): Muro {
+  const L = Math.max(V2_MURO.minLargoM, largoM);
+  const dx = m.b.x - m.a.x;
+  const dy = m.b.y - m.a.y;
+  const angLim = (angleDeg * Math.PI) / 180;
+  const { h, v } = angleToAxis(dx, dy);
+  let bx: number;
+  let by: number;
+  if (h <= angLim && h <= v) {
+    const sign = dx === 0 ? 1 : Math.sign(dx);
+    bx = m.a.x + sign * L;
+    by = m.a.y;
+  } else if (v <= angLim) {
+    const sign = dy === 0 ? 1 : Math.sign(dy);
+    bx = m.a.x;
+    by = m.a.y + sign * L;
+  } else {
+    const cur = Math.hypot(dx, dy) || 1;
+    bx = m.a.x + (dx / cur) * L;
+    by = m.a.y + (dy / cur) * L;
+  }
+  return { id: m.id, a: { x: m.a.x, y: m.a.y }, b: { x: bx, y: by }, espesor: m.espesor };
+}
+
 /** Rectángulo de planta del muro (4 vértices). */
 export function muroPoly(m: Muro): Pt[] {
   return thickPoly(m.a, m.b, m.espesor);

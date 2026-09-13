@@ -20,22 +20,25 @@ import {
   lengthMeters,
   losaArea,
   measure,
+  muroHiladas,
   muroId,
   muroLargo,
   muroParts,
   muroPoly,
+  parseMeters,
   placeHuecoOnMuro,
   polygonArea,
   polylineLength,
   polylineLengthMeters,
   rectPoly,
   sampleHeights,
+  scaleMuroFromStart,
   snapDraft,
   snapZapataCenter,
   structId,
   vigaLargo,
 } from "./geometry.ts";
-import { V2_HUECO } from "./tables.ts";
+import { V2_HUECO, V2_MURO } from "./tables.ts";
 
 describe("v2 geometry", () => {
   it("largo de fixture > 0 y en metros = largo × escala 2", () => {
@@ -152,5 +155,26 @@ describe("v2 geometry", () => {
     assert.equal(polygonArea(rectPoly({ x: 0, y: 0 }, { x: 4, y: 3 })), 12);
     assert.equal(hitSquare({ x: 2, y: 2 }, col.c, col.lado, 0), true);
     assert.equal(hitSquare({ x: 3, y: 3 }, col.c, col.lado, 0), false);
+  });
+
+  it("14.76 → 8.00 escala desde el arranque con snap H/V", () => {
+    const h = createMuro({ x: 0, y: 2 }, { x: 14.76, y: 2.05 }, "M-001");
+    const n = scaleMuroFromStart(h, 8);
+    assert.equal(n.a.x, 0);
+    assert.equal(n.a.y, 2);
+    assert.equal(muroLargo(n), 8);
+    assert.equal(n.b.y, 2);
+    assert.equal(n.b.x, 8);
+    const v = createMuro({ x: 3, y: 0 }, { x: 3.04, y: 14.76 }, "M-002");
+    const nv = scaleMuroFromStart(v, 8);
+    assert.equal(nv.a.x, 3);
+    assert.equal(nv.a.y, 0);
+    assert.equal(nv.b.x, 3);
+    assert.equal(muroLargo(nv), 8);
+    assert.equal(parseMeters("8,00"), 8);
+    assert.equal(parseMeters("8.00"), 8);
+    assert.equal(muroHiladas(V2_MURO.altoM), 13);
+    assert.equal(V2_MURO.altoM, 2.6);
+    assert.equal(V2_MURO.hiladaM, 0.2);
   });
 });

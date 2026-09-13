@@ -27,7 +27,7 @@ import {
   type Viga,
   type Zapata,
 } from "./geometry.ts";
-import { V2_SHEET } from "./tables.ts";
+import { V2_MURO, V2_SHEET } from "./tables.ts";
 import type { V2View } from "./persist-v2.ts";
 
 export type Palette = {
@@ -206,6 +206,42 @@ function drawCota(
   ctx.restore();
 }
 
+function drawHiladas(
+  ctx: CanvasRenderingContext2D,
+  a: Pt,
+  b: Pt,
+  espesor: number,
+  view: V2View,
+  pal: Palette,
+) {
+  const step = V2_MURO.hiladaM;
+  if (view.ppm * step < 6) return;
+  const L = Math.hypot(b.x - a.x, b.y - a.y);
+  if (L < step) return;
+  const ux = (b.x - a.x) / L;
+  const uy = (b.y - a.y) / L;
+  const nx = -uy;
+  const ny = ux;
+  const half = (espesor / 2) * 0.72;
+  const n = Math.floor(L / step);
+  ctx.save();
+  ctx.strokeStyle = pal.faint;
+  ctx.lineWidth = 1;
+  ctx.globalAlpha = 0.55;
+  for (let i = 1; i < n; i++) {
+    const t = i * step;
+    const px = a.x + ux * t;
+    const py = a.y + uy * t;
+    const s1 = toScreen(view, { x: px + nx * half, y: py + ny * half });
+    const s2 = toScreen(view, { x: px - nx * half, y: py - ny * half });
+    ctx.beginPath();
+    ctx.moveTo(s1.x, s1.y);
+    ctx.lineTo(s2.x, s2.y);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function drawBody(
   ctx: CanvasRenderingContext2D,
   a: Pt,
@@ -224,6 +260,7 @@ function drawBody(
   ctx.strokeStyle = selected ? pal.cyan : pal.ink;
   ctx.lineWidth = selected ? 2 : 1.2;
   ctx.stroke();
+  drawHiladas(ctx, a, b, espesor, view, pal);
 }
 
 function drawJamb(

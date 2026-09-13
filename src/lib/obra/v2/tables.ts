@@ -33,10 +33,12 @@ export const V2_SHEET = { widthM: 24, heightM: 16 } as const;
 
 /** Muro de fábrica. Alto y bloque para el takeoff mínimo. */
 export const V2_MURO = {
-  altoM: 2.4,
+  altoM: 2.6,
   espesorM: 0.2,
   minLargoM: 0.3,
   blockFaceM2: 0.08,
+  /** Curso de block. 2.60 / 0.20 = 13 hiladas. */
+  hiladaM: 0.2,
   /** m³ de mortero por m² de muro neto. Juego, no ERP. */
   morteroM3PerM2: 0.02,
 } as const;

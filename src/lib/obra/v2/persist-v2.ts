@@ -30,11 +30,22 @@ export const V2_LIVE_KEY = "obra.v2";
 export const V2_BAK_KEY = "obra.v2.bak";
 export const V2_PRODUCT = "obra.v2" as const;
 export const V2_DOC_VERSION = 1 as const;
+/** Archivo V2: a lo sumo diez placas selladas. */
+export const V2_ARCHIVE_CAP = 10;
 
 export type V2View = {
   panX: number;
   panY: number;
   ppm: number;
+};
+
+export type V2Dibujo = {
+  walls: Muro[];
+  openings: Hueco[];
+  columns: Columna[];
+  footings: Zapata[];
+  beams: Viga[];
+  slabs: Losa[];
 };
 
 export type V2Placa = {
@@ -52,6 +63,7 @@ export type V2Placa = {
     vigas: number;
     losas: number;
   };
+  dibujo: V2Dibujo | null;
 };
 
 export type V2Document = {
@@ -151,6 +163,19 @@ function clonePlaca(p: V2Placa): V2Placa {
     estimado: p.estimado,
     estado: p.estado,
     recuento: { ...p.recuento },
+    dibujo: cloneDibujo(p.dibujo),
+  };
+}
+
+function cloneDibujo(d: V2Dibujo | null | undefined): V2Dibujo | null {
+  if (!d) return null;
+  return {
+    walls: d.walls.map((m) => createMuro(m.a, m.b, m.id, m.espesor)),
+    openings: d.openings.map((h) => createHueco(h.kind, h.wallId, h.alongM, h.id, h.ancho)),
+    columns: d.columns.map((c) => createColumna(c.c, c.id, c.lado)),
+    footings: d.footings.map((z) => createZapata(z.c, z.id, z.lado, z.columnId)),
+    beams: d.beams.map((v) => createViga(v.a, v.b, v.id, v.ancho)),
+    slabs: d.slabs.map((l) => createLosa(l.poly, l.id)),
   };
 }
 
@@ -306,6 +331,27 @@ function migrateClock(raw: unknown): V2ClockState {
   };
 }
 
+function migrateDibujo(raw: unknown): V2Dibujo | null {
+  if (!isObject(raw)) return null;
+  const walls = migrateWalls(raw.walls);
+  const openings = migrateOpenings(raw.openings, walls);
+  const columns = migrateSquares(raw.columns, "C", V2_COLUMNA.ladoM).map((c) =>
+    createColumna(c.c, c.id, c.lado),
+  );
+  const footings = migrateSquares(raw.footings, "Z", V2_ZAPATA.ladoM).map((z) =>
+    createZapata(z.c, z.id, z.lado, z.columnId),
+  );
+  const beams = migrateBeams(raw.beams);
+  const slabs = migrateSlabs(raw.slabs);
+  if (
+    walls.length + openings.length + columns.length + footings.length + beams.length + slabs.length ===
+    0
+  ) {
+    return null;
+  }
+  return { walls, openings, columns, footings, beams, slabs };
+}
+
 function migrateArchive(raw: unknown): V2Placa[] {
   if (!Array.isArray(raw)) return [];
   const out: V2Placa[] = [];
@@ -332,9 +378,11 @@ function migrateArchive(raw: unknown): V2Placa[] {
         vigas: Math.max(0, num(rec.vigas, 0)),
         losas: Math.max(0, num(rec.losas, 0)),
       },
+      dibujo: migrateDibujo(item.dibujo),
     });
   }
-  return collapseClonedPlacas(out);
+  const collapsed = collapseClonedPlacas(out);
+  return collapsed.length > V2_ARCHIVE_CAP ? collapsed.slice(collapsed.length - V2_ARCHIVE_CAP) : collapsed;
 }
 
 function seqFromIds(ids: readonly string[], prefix: RegExp, fallback: number): number {
@@ -571,7 +619,19 @@ export function placaFromScene(
       vigas: scene.beams.length,
       losas: scene.slabs.length,
     },
+    dibujo: cloneDibujo({
+      walls: scene.walls as Muro[],
+      openings: scene.openings as Hueco[],
+      columns: scene.columns as Columna[],
+      footings: scene.footings as Zapata[],
+      beams: scene.beams as Viga[],
+      slabs: scene.slabs as Losa[],
+    }),
   };
+}
+
+export function dibujoFromPlaca(p: V2Placa): V2Dibujo | null {
+  return cloneDibujo(p.dibujo);
 }
 
 /**
@@ -604,8 +664,10 @@ export function sealArchive(
   const id = draft.id || placaId(nextArchiveSeq);
   const placa: V2Placa = { ...draft, id, estado };
   const seq = Number(String(id).replace(/^A-/, ""));
+  const grown = archive.concat([placa]);
+  const next = grown.length > V2_ARCHIVE_CAP ? grown.slice(grown.length - V2_ARCHIVE_CAP) : grown;
   return {
-    archive: archive.concat([placa]),
+    archive: next,
     nextArchiveSeq: Number.isFinite(seq) ? Math.max(nextArchiveSeq, seq + 1) : nextArchiveSeq + 1,
     clock: {
       ...clock,

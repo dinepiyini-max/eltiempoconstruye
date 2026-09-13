@@ -3,6 +3,7 @@
  */
 import { create } from "zustand";
 import {
+  clampHuecoAlong,
   createColumna,
   createHueco,
   createLosa,
@@ -17,6 +18,7 @@ import {
   nextStructSeq,
   placeHuecoOnMuro,
   polygonArea,
+  scaleMuroFromStart,
   snapDraft,
   snapZapataCenter,
   structId,
@@ -47,6 +49,7 @@ import {
 } from "./clock.ts";
 import {
   drawingIsEmpty,
+  dibujoFromPlaca,
   loadV2,
   placaFromScene,
   placaId,
@@ -117,11 +120,13 @@ type NuevaStore = {
   placeHueco: (kind: HuecoKind, world: Pt) => string | null;
   select: (id: string | null) => void;
   deleteSelected: () => void;
+  setMuroLargo: (id: string, largoM: number) => void;
   undo: () => void;
   redo: () => void;
   snap: (raw: Pt, origin: Pt | null) => { point: Pt; kind: SnapKind };
   nuevaLamina: () => void;
   cerrarLamina: () => string | null;
+  reabrirPlaca: (id: string, opts?: { force?: boolean }) => "ok" | "confirm" | "missing";
   iniciarEjecucion: () => void;
   setPace: (pace: V2Pace) => void;
   tickClock: (now: number) => void;
@@ -460,6 +465,25 @@ export const useNueva = create<NuevaStore>((set, get) => ({
 
   select: (id) => set({ selectedId: id, draft: null }),
 
+  setMuroLargo: (id, largoM) => {
+    const s = get();
+    const muro = s.walls.find((w) => w.id === id);
+    if (!muro) return;
+    const nextMuro = scaleMuroFromStart(muro, largoM);
+    const nextL = muroLargo(nextMuro);
+    if (Math.abs(nextL - muroLargo(muro)) < 1e-6 && nextMuro.b.x === muro.b.x && nextMuro.b.y === muro.b.y) return;
+    const openings = s.openings
+      .map((h) => {
+        if (h.wallId !== id) return h;
+        const along = clampHuecoAlong(nextL, h.ancho, h.alongM);
+        if (along == null) return null;
+        return createHueco(h.kind, h.wallId, along, h.id, h.ancho);
+      })
+      .filter((h): h is Hueco => h != null);
+    const walls = s.walls.map((w) => (w.id === id ? nextMuro : w));
+    applyScene(set, get, sceneOf(walls, openings, s.columns, s.footings, s.beams, s.slabs), { selectedId: id });
+  },
+
   deleteSelected: () => {
     const { selectedId, walls, openings, columns, footings, beams, slabs } = get();
     if (!selectedId) return;
@@ -628,6 +652,63 @@ export const useNueva = create<NuevaStore>((set, get) => ({
     });
     persistNow(get);
     return sealed.id;
+  },
+
+  reabrirPlaca: (id, opts) => {
+    const s = get();
+    const p = s.archive.find((x) => x.id === id);
+    if (!p || (p.estado !== "cerrada" && p.estado !== "ejecutada")) return "missing";
+    const dibujo = dibujoFromPlaca(p);
+    if (!dibujo) {
+      if (s.clock.placaId === id) {
+        set({ page: "lamina" });
+        return "ok";
+      }
+      return "missing";
+    }
+    const dirty =
+      laminaAbierta(s.clock) &&
+      !drawingIsEmpty({
+        walls: s.walls,
+        openings: s.openings,
+        columns: s.columns,
+        footings: s.footings,
+        beams: s.beams,
+        slabs: s.slabs,
+      });
+    if (dirty && !opts?.force) return "confirm";
+    const present = sceneOf(dibujo.walls, dibujo.openings, dibujo.columns, dibujo.footings, dibujo.beams, dibujo.slabs);
+    set({
+      walls: present.walls,
+      openings: present.openings,
+      columns: present.columns,
+      footings: present.footings,
+      beams: present.beams,
+      slabs: present.slabs,
+      selectedId: null,
+      draft: null,
+      polyDraft: [],
+      nextSeq: nextStructSeq("M", present.walls.map((w) => w.id)),
+      nextHuecoSeq: Math.max(nextHuecoSeqFor("puerta", present.openings), nextHuecoSeqFor("ventana", present.openings)),
+      nextColSeq: nextStructSeq("C", present.columns.map((c) => c.id)),
+      nextZapSeq: nextStructSeq("Z", present.footings.map((z) => z.id)),
+      nextVigaSeq: nextStructSeq("VG", present.beams.map((v) => v.id)),
+      nextLosaSeq: nextStructSeq("L", present.slabs.map((l) => l.id)),
+      hist: histInit(present),
+      canUndo: false,
+      canRedo: false,
+      page: "lamina",
+      clock: {
+        ...idleClock(),
+        sealed: true,
+        placaId: p.id,
+        executed: p.estado === "ejecutada",
+      },
+      lastTick: null,
+      notice: null,
+    });
+    persistNow(get);
+    return "ok";
   },
 
   iniciarEjecucion: () => {

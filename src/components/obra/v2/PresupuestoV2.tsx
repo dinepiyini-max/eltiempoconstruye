@@ -7,10 +7,12 @@ export function PresupuestoV2({
   hoja,
   archive,
   enCurso,
+  onAbrir,
 }: {
   hoja: HojaPresupuesto;
   archive: V2Placa[];
   enCurso?: boolean;
+  onAbrir?: (id: string) => void;
 }) {
   const selladas = archive.filter((p) => p.estado === "cerrada" || p.estado === "ejecutada");
   return (
@@ -68,7 +70,7 @@ export function PresupuestoV2({
         {selladas.length ? (
           <ul className="mt-3 grid gap-3 sm:grid-cols-2">
             {selladas.map((p) => (
-              <PlacaCard key={p.id} p={p} />
+              <PlacaCard key={p.id} p={p} onAbrir={onAbrir} />
             ))}
           </ul>
         ) : (
@@ -81,21 +83,29 @@ export function PresupuestoV2({
   );
 }
 
-function PlacaCard({ p }: { p: V2Placa }) {
+function PlacaCard({ p, onAbrir }: { p: V2Placa; onAbrir?: (id: string) => void }) {
   return (
-    <li className="border border-ink/30 bg-paper px-3 py-3" data-placa={p.id} data-estado={p.estado}>
-      <p className="small-caps text-[0.62rem] text-stamp">
-        {p.id} · {p.estado.toUpperCase()}
-      </p>
-      <p className="font-serif text-lg text-ink">{formatFecha(p.closedAt)}</p>
-      <p className="mt-1 font-sans text-sm tabular-nums text-ink">
-        {formatMeters(p.largoMuroM)} muro · {formatM2(p.losaM2)} losa
-      </p>
-      <p className="font-sans text-xl tabular-nums text-ink">{formatInt(p.estimado)}</p>
-      <p className="mt-1 small-caps text-[0.52rem] leading-snug text-ink-soft">
-        {p.recuento.muros} muros · {p.recuento.vanos} vanos · {p.recuento.columnas} col · {p.recuento.zapatas} zap ·{" "}
-        {p.recuento.vigas} vigas · {p.recuento.losas} losas
-      </p>
+    <li className="border border-ink/30 bg-paper" data-placa={p.id} data-estado={p.estado}>
+      <button
+        type="button"
+        data-abrir={p.id}
+        onClick={() => onAbrir?.(p.id)}
+        className="w-full min-h-11 px-3 py-3 text-left"
+      >
+        <p className="small-caps text-[0.62rem] text-stamp">
+          {p.id} · {p.estado.toUpperCase()}
+        </p>
+        <p className="font-serif text-lg text-ink">{formatFecha(p.closedAt)}</p>
+        <p className="mt-1 font-sans text-sm tabular-nums text-ink">
+          {formatMeters(p.largoMuroM)} muro · {formatM2(p.losaM2)} losa
+        </p>
+        <p className="font-sans text-xl tabular-nums text-ink">{formatInt(p.estimado)}</p>
+        <p className="mt-1 small-caps text-[0.52rem] leading-snug text-ink-soft">
+          {p.recuento.muros} muros · {p.recuento.vanos} vanos · {p.recuento.columnas} col · {p.recuento.zapatas} zap ·{" "}
+          {p.recuento.vigas} vigas · {p.recuento.losas} losas
+        </p>
+        <p className="mt-2 small-caps text-[0.62rem] text-cyan">Abrir placa</p>
+      </button>
     </li>
   );
 }
