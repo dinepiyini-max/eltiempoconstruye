@@ -4,7 +4,7 @@
  * FASE E: hueco (puerta/ventana) ligado a wallId + posición a lo largo.
  */
 import { dist, height, type Pt } from "../terrain.ts";
-import { V2_COLUMNA, V2_HUECO, V2_MURO, V2_SCALE_M_PER_UNIT, V2_VIGA, V2_ZAPATA } from "./tables.ts";
+import { V2_COLUMNA, V2_HUECO, V2_LOSA_PLANTA, V2_MURO, V2_SCALE_M_PER_UNIT, V2_VIGA, V2_ZAPATA } from "./tables.ts";
 
 export type { Pt };
 
@@ -481,6 +481,23 @@ export function createViga(a: Pt, b: Pt, id: string, ancho: number = V2_VIGA.anc
 
 export function createLosa(poly: readonly Pt[], id: string): Losa {
   return { id, poly: poly.map((p) => ({ x: p.x, y: p.y })) };
+}
+
+/**
+ * Escala la losa desde el centroide. 12 m² → 6 m² deja la forma y mueve el RD$.
+ */
+export function scaleLosaToArea(l: Losa, areaM2: number): Losa {
+  const cur = losaArea(l);
+  const target = Math.max(V2_LOSA_PLANTA.minAreaM2, areaM2);
+  if (cur <= 1e-9) return l;
+  if (Math.abs(cur - target) < 1e-6) return l;
+  const k = Math.sqrt(target / cur);
+  const c = polygonCentroid(l.poly);
+  const poly = l.poly.map((p) => ({
+    x: c.x + (p.x - c.x) * k,
+    y: c.y + (p.y - c.y) * k,
+  }));
+  return createLosa(poly, l.id);
 }
 
 export function squarePoly(c: Pt, lado: number): Pt[] {

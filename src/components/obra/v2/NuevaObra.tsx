@@ -43,10 +43,12 @@ export function NuevaObra() {
   const cerrarLamina = useNueva((s) => s.cerrarLamina);
   const reabrirPlaca = useNueva((s) => s.reabrirPlaca);
   const setMuroLargo = useNueva((s) => s.setMuroLargo);
+  const setLosaArea = useNueva((s) => s.setLosaArea);
   const clock = useNueva((s) => s.clock);
   const [confirmNueva, setConfirmNueva] = useState(false);
   const [confirmAbrir, setConfirmAbrir] = useState<string | null>(null);
   const [largoTxt, setLargoTxt] = useState("");
+  const [areaTxt, setAreaTxt] = useState("");
 
   useEffect(() => {
     hydrate();
@@ -133,7 +135,8 @@ export function NuevaObra() {
 
   useEffect(() => {
     if (panel.kind === "muro" && panel.largo != null) setLargoTxt(panel.largo.toFixed(2));
-  }, [panel.kind, panel.title, panel.largo]);
+    if (panel.kind === "losa" && panel.losaM2 != null) setAreaTxt(panel.losaM2.toFixed(2));
+  }, [panel.kind, panel.title, panel.largo, panel.losaM2]);
 
   const cota = draft
     ? formatMeters(muroLargo(draft))
@@ -181,6 +184,16 @@ export function NuevaObra() {
       return;
     }
     setMuroLargo(selectedId, n);
+  };
+
+  const commitArea = () => {
+    if (panel.kind !== "losa" || !selectedId) return;
+    const n = parseMeters(areaTxt);
+    if (n == null) {
+      if (panel.losaM2 != null) setAreaTxt(panel.losaM2.toFixed(2));
+      return;
+    }
+    setLosaArea(selectedId, n);
   };
 
   return (
@@ -327,6 +340,9 @@ export function NuevaObra() {
                 largoTxt={largoTxt}
                 onLargoTxt={setLargoTxt}
                 onLargoCommit={commitLargo}
+                areaTxt={areaTxt}
+                onAreaTxt={setAreaTxt}
+                onAreaCommit={commitArea}
               />
             </dl>
             <p className="mt-4 small-caps text-[0.55rem] text-ink-soft">Estimado RD$</p>
@@ -346,16 +362,30 @@ function PanelFields({
   largoTxt,
   onLargoTxt,
   onLargoCommit,
+  areaTxt,
+  onAreaTxt,
+  onAreaCommit,
 }: {
   panel: PanelCantidad;
   largoTxt: string;
   onLargoTxt: (v: string) => void;
   onLargoCommit: () => void;
+  areaTxt: string;
+  onAreaTxt: (v: string) => void;
+  onAreaCommit: () => void;
 }) {
   if (panel.kind === "muro") {
     return (
       <>
-        <LargoEdit value={largoTxt} onChange={onLargoTxt} onCommit={onLargoCommit} />
+        <MedidaEdit
+          k="Longitud"
+          unit="m"
+          value={largoTxt}
+          onChange={onLargoTxt}
+          onCommit={onLargoCommit}
+          dataAttr="data-largo-edit"
+          ariaLabel="Largo del muro en metros"
+        />
         <QtyBig k="Alto" v={dash(panel.alto, formatMeters)} />
         <QtyBig k="Hiladas" v={panel.hiladas == null ? "—" : String(panel.hiladas)} />
         <QtyBig k="Área neta" v={dash(panel.areaNeta, formatM2)} />
@@ -375,7 +405,15 @@ function PanelFields({
       <>
         <QtyBig k="Longitud" v="—" />
         <QtyBig k="Blocks" v="—" />
-        <QtyBig k="Losa" v={dash(panel.losaM2, formatM2)} />
+        <MedidaEdit
+          k="Losa"
+          unit="m²"
+          value={areaTxt}
+          onChange={onAreaTxt}
+          onCommit={onAreaCommit}
+          dataAttr="data-area-edit"
+          ariaLabel="Área de la losa en metros cuadrados"
+        />
         <QtyBig k="Espesor" v={dash(panel.espesor, formatMeters)} />
         <QtyBig k="Hormigón" v={dash(panel.hormigonM3, (n) => `${n.toFixed(2)} m³`)} />
         <QtyBig k="Acero est." v={dash(panel.aceroT, (n) => `${n.toFixed(2)} t`)} />
@@ -428,34 +466,59 @@ function PanelFields({
   );
 }
 
-function LargoEdit({
+function MedidaEdit({
+  k,
+  unit,
   value,
   onChange,
   onCommit,
+  dataAttr,
+  ariaLabel,
 }: {
+  k: string;
+  unit: string;
   value: string;
   onChange: (v: string) => void;
   onCommit: () => void;
+  dataAttr: string;
+  ariaLabel: string;
 }) {
   return (
-    <div>
-      <dt className="small-caps text-[0.62rem] text-ink-soft">Longitud</dt>
-      <dd>
+    <div className="col-span-2 md:col-span-1">
+      <dt className="small-caps text-[0.62rem] text-ink-soft">{k}</dt>
+      <dd className="mt-1 flex items-end gap-2">
         <input
-          data-largo-edit
+          data-largo-edit={dataAttr === "data-largo-edit" ? "" : undefined}
+          data-area-edit={dataAttr === "data-area-edit" ? "" : undefined}
           inputMode="decimal"
-          aria-label="Largo del muro en metros"
+          enterKeyHint="done"
+          autoComplete="off"
+          autoCorrect="off"
+          spellCheck={false}
+          pattern="[0-9]*[.,]?[0-9]*"
+          aria-label={ariaLabel}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onBlur={onCommit}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
+              onCommit();
               (e.target as HTMLInputElement).blur();
             }
           }}
-          className="w-full min-h-11 border-b border-ink/40 bg-transparent font-sans text-3xl tabular-nums leading-none tracking-tight text-ink outline-none"
+          className="min-h-11 min-w-0 flex-1 border-b border-ink/50 bg-transparent font-sans text-3xl tabular-nums leading-none tracking-tight text-ink outline-none"
         />
+        <span className="small-caps mb-1 shrink-0 text-[0.7rem] text-ink-soft">{unit}</span>
+        <button
+          type="button"
+          data-medida-ok
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={onCommit}
+          className="small-caps min-h-11 shrink-0 border border-ink/40 px-3 text-[0.68rem] tracking-[0.12em] text-ink"
+        >
+          OK
+        </button>
       </dd>
     </div>
   );

@@ -32,6 +32,7 @@ import {
   polylineLengthMeters,
   rectPoly,
   sampleHeights,
+  scaleLosaToArea,
   scaleMuroFromStart,
   snapDraft,
   snapZapataCenter,
@@ -176,5 +177,14 @@ describe("v2 geometry", () => {
     assert.equal(muroHiladas(V2_MURO.altoM), 13);
     assert.equal(V2_MURO.altoM, 2.6);
     assert.equal(V2_MURO.hiladaM, 0.2);
+  });
+
+  it("losa 12 m² → 6 m² escala el polígono y el área", () => {
+    const losa = createLosa(rectPoly({ x: 0, y: 0 }, { x: 4, y: 3 }), "L-001");
+    assert.equal(losaArea(losa), 12);
+    const n = scaleLosaToArea(losa, 6);
+    assert.ok(Math.abs(losaArea(n) - 6) < 1e-6);
+    assert.equal(n.id, "L-001");
+    assert.equal(losaArea(losa), 12);
   });
 });

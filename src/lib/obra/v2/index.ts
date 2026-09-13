@@ -71,6 +71,7 @@ export {
   polylineLengthMeters,
   rectPoly,
   sampleHeights,
+  scaleLosaToArea,
   scaleMuroFromStart,
   snapDraft,
   snapZapataCenter,

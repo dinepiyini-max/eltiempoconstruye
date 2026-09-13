@@ -10,6 +10,7 @@ import {
   FIXTURE_RAMPA,
   measure,
   rectPoly,
+  scaleLosaToArea,
 } from "./geometry.ts";
 import {
   takeoff,
@@ -99,5 +100,15 @@ describe("v2 quantity", () => {
     assert.ok(scene.hormigonM3 > qc.hormigonM3 + qz.hormigonM3);
     assert.equal(scene.losaM2, 12);
     assert.ok(scene.aceroT > 0);
+  });
+
+  it("escalar losa 12→6 m² baja el hormigón a la mitad", () => {
+    const a = createLosa(rectPoly({ x: 0, y: 0 }, { x: 4, y: 3 }), "L-001");
+    const b = scaleLosaToArea(a, 6);
+    const qa = takeoffLosa(a);
+    const qb = takeoffLosa(b);
+    assert.equal(qa.areaM2, 12);
+    assert.ok(Math.abs(qb.areaM2 - 6) < 1e-6);
+    assert.ok(Math.abs(qb.hormigonM3 - qa.hormigonM3 / 2) < 1e-6);
   });
 });

@@ -18,6 +18,7 @@ import {
   nextStructSeq,
   placeHuecoOnMuro,
   polygonArea,
+  scaleLosaToArea,
   scaleMuroFromStart,
   snapDraft,
   snapZapataCenter,
@@ -121,6 +122,7 @@ type NuevaStore = {
   select: (id: string | null) => void;
   deleteSelected: () => void;
   setMuroLargo: (id: string, largoM: number) => void;
+  setLosaArea: (id: string, areaM2: number) => void;
   undo: () => void;
   redo: () => void;
   snap: (raw: Pt, origin: Pt | null) => { point: Pt; kind: SnapKind };
@@ -482,6 +484,16 @@ export const useNueva = create<NuevaStore>((set, get) => ({
       .filter((h): h is Hueco => h != null);
     const walls = s.walls.map((w) => (w.id === id ? nextMuro : w));
     applyScene(set, get, sceneOf(walls, openings, s.columns, s.footings, s.beams, s.slabs), { selectedId: id });
+  },
+
+  setLosaArea: (id, areaM2) => {
+    const s = get();
+    const losa = s.slabs.find((l) => l.id === id);
+    if (!losa) return;
+    const next = scaleLosaToArea(losa, areaM2);
+    if (Math.abs(polygonArea(next.poly) - polygonArea(losa.poly)) < 1e-6) return;
+    const slabs = s.slabs.map((l) => (l.id === id ? next : l));
+    applyScene(set, get, sceneOf(s.walls, s.openings, s.columns, s.footings, s.beams, slabs), { selectedId: id });
   },
 
   deleteSelected: () => {
