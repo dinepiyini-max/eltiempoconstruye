@@ -4,7 +4,8 @@ import { formatInt } from "@/lib/obra/format";
 import { hojaPresupuesto } from "@/lib/obra/v2/cost";
 import { formatM2, formatMeters, muroLargo, polygonArea, vigaLargo } from "@/lib/obra/v2/geometry";
 import { laminaAbierta } from "@/lib/obra/v2/clock";
-import { takeoffColumna, takeoffLosa, takeoffMuro, takeoffScene, takeoffViga, takeoffZapata } from "@/lib/obra/v2/quantity";
+import { panelCantidad } from "@/lib/obra/v2/panel";
+import { takeoffScene } from "@/lib/obra/v2/quantity";
 import { useNueva, type V2Tool } from "@/lib/obra/v2/store";
 import { NuevaCanvas } from "./NuevaCanvas";
 import { PresupuestoV2 } from "./PresupuestoV2";
@@ -114,13 +115,11 @@ export function NuevaObra() {
   const selectedWall =
     walls.find((w) => w.id === selectedId) ??
     (selectedHueco ? (walls.find((w) => w.id === selectedHueco.wallId) ?? null) : null);
-  const selectedCol = columns.find((c) => c.id === selectedId) ?? null;
-  const selectedZap = footings.find((z) => z.id === selectedId) ?? null;
   const selectedViga = beams.find((v) => v.id === selectedId) ?? null;
   const selectedLosa = slabs.find((l) => l.id === selectedId) ?? null;
 
   const sceneQty = takeoffScene({ walls, openings, columns, footings, beams, slabs });
-  const wallQty = selectedWall ? takeoffMuro(selectedWall, undefined, openings) : null;
+  const panel = panelCantidad({ walls, openings, columns, footings, beams, slabs }, selectedId);
   const hoja = hojaPresupuesto(sceneQty, { rework: clock.rework });
   const hasDrawing = walls.length + openings.length + columns.length + footings.length + beams.length + slabs.length > 0;
   const enCurso = laminaAbierta(clock);
@@ -158,52 +157,6 @@ export function NuevaObra() {
                 : tool === "losa"
                   ? "Arrastra un rectángulo, o 3+ clics y cierra en el primero."
                   : "Clic, clic — o arrastra. Snap: horz / vert / esquina.";
-
-  const panelTitle = selectedHueco
-    ? selectedHueco.id
-    : selectedWall
-      ? selectedWall.id
-      : selectedCol
-        ? selectedCol.id
-        : selectedZap
-          ? selectedZap.id
-          : selectedViga
-            ? selectedViga.id
-            : selectedLosa
-              ? selectedLosa.id
-              : walls.length || columns.length || footings.length || beams.length || slabs.length
-                ? "OBRA"
-                : "MURO";
-
-  const blocksNow = wallQty ? wallQty.blocksEst : sceneQty.blocksEst;
-  const blocksDelta = wallQty && selectedWall
-    ? wallQty.blocksEst - takeoffMuro(selectedWall, undefined, []).blocksEst
-    : sceneQty.blocksDelta;
-  const hormigon = selectedCol
-    ? takeoffColumna(selectedCol).hormigonM3
-    : selectedZap
-      ? takeoffZapata(selectedZap).hormigonM3
-      : selectedViga
-        ? takeoffViga(selectedViga).hormigonM3
-        : selectedLosa
-          ? takeoffLosa(selectedLosa).hormigonM3
-          : wallQty
-            ? wallQty.hormigonM3
-            : sceneQty.hormigonM3;
-  const acero = selectedCol
-    ? takeoffColumna(selectedCol).aceroT
-    : selectedZap
-      ? takeoffZapata(selectedZap).aceroT
-      : selectedViga
-        ? takeoffViga(selectedViga).aceroT
-        : selectedLosa
-          ? takeoffLosa(selectedLosa).aceroT
-          : wallQty
-            ? wallQty.aceroT
-            : sceneQty.aceroT;
-  const losaM2 = selectedLosa ? takeoffLosa(selectedLosa).areaM2 : sceneQty.losaM2;
-  const largo = selectedViga ? takeoffViga(selectedViga).largoM : wallQty ? wallQty.largoM : sceneQty.largoM;
-  const areaNeta = wallQty ? wallQty.areaNetaM2 : sceneQty.areaNetaM2;
 
   return (
     <div className="flex min-h-dvh flex-col overflow-hidden bg-paper text-ink" data-obra="nueva">
@@ -301,30 +254,7 @@ export function NuevaObra() {
       </header>
 
       {page === "presupuesto" ? (
-        <PresupuestoV2
-          hoja={hoja}
-          archive={archive}
-          abierta={
-            enCurso
-              ? {
-                  id: "ABIERTA",
-                  closedAt: "",
-                  largoMuroM: walls.reduce((n, m) => n + muroLargo(m), 0),
-                  losaM2: sceneQty.losaM2,
-                  estimado: hoja.total,
-                  estado: "abierta" as const,
-                  recuento: {
-                    muros: walls.length,
-                    vanos: openings.length,
-                    columnas: columns.length,
-                    zapatas: footings.length,
-                    vigas: beams.length,
-                    losas: slabs.length,
-                  },
-                }
-              : null
-          }
-        />
+        <PresupuestoV2 hoja={hoja} archive={archive} enCurso={enCurso} />
       ) : page === "ejecucion" ? (
         <EjecucionV2 />
       ) : (
@@ -332,20 +262,26 @@ export function NuevaObra() {
           <main className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
             {hydrated ? <NuevaCanvas /> : <div className="h-full w-full bg-paper" />}
           </main>
-          <aside className="max-h-[38vh] shrink-0 overflow-y-auto border-t border-rule/80 bg-paper px-4 py-3 md:max-h-none md:w-72 md:border-l md:border-t-0">
+          <aside
+            className="max-h-[38vh] shrink-0 overflow-y-auto border-t border-rule/80 bg-paper px-4 py-3 md:max-h-none md:w-72 md:border-l md:border-t-0"
+            data-cantidad
+            data-kind={panel.kind}
+          >
             <p className="small-caps text-[0.62rem] text-cyan">Cantidad</p>
-            <h2 className="font-serif text-2xl text-ink">{panelTitle}</h2>
+            <h2 className="font-serif text-2xl text-ink">{panel.title}</h2>
             <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-4 md:grid-cols-1">
-              <QtyBig k="Longitud" v={formatMeters(largo)} />
-              <QtyBig k="Área neta" v={formatM2(areaNeta)} />
+              <QtyBig k="Longitud" v={dash(panel.largo, formatMeters)} />
+              <QtyBig k="Área neta" v={dash(panel.areaNeta, formatM2)} />
               <QtyBig
                 k="Blocks"
-                v={String(blocksNow)}
-                sub={blocksDelta < 0 ? `−${-blocksDelta} blocks` : undefined}
+                v={panel.blocks == null ? "—" : String(panel.blocks)}
+                sub={panel.blocks != null && panel.blocksDelta < 0 ? `−${-panel.blocksDelta} blocks` : undefined}
               />
-              <QtyBig k="Hormigón" v={`${hormigon.toFixed(2)} m³`} />
-              <QtyBig k="Acero est." v={`${acero.toFixed(2)} t`} />
-              {losaM2 > 0 ? <QtyBig k="Losa" v={formatM2(losaM2)} /> : null}
+              <QtyBig k="Hormigón" v={dash(panel.hormigonM3, (n) => `${n.toFixed(2)} m³`)} />
+              <QtyBig k="Acero est." v={dash(panel.aceroT, (n) => `${n.toFixed(2)} t`)} />
+              {panel.losaM2 != null && panel.losaM2 > 0 ? <QtyBig k="Losa" v={formatM2(panel.losaM2)} /> : null}
+              {panel.huecoAncho != null ? <QtyBig k="Ancho" v={formatMeters(panel.huecoAncho)} /> : null}
+              {panel.parentWallId ? <QtyBig k="Muro padre" v={panel.parentWallId} /> : null}
             </dl>
             <p className="mt-4 small-caps text-[0.55rem] text-ink-soft">Estimado RD$</p>
             <p className="font-sans text-3xl tabular-nums leading-none text-ink" data-cost>
@@ -357,6 +293,10 @@ export function NuevaObra() {
       )}
     </div>
   );
+}
+
+function dash(n: number | null, fmt: (n: number) => string): string {
+  return n == null ? "—" : fmt(n);
 }
 
 function ToolBtn({

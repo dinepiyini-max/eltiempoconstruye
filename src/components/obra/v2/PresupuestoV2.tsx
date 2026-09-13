@@ -6,12 +6,13 @@ import { formatM2, formatMeters } from "@/lib/obra/v2/geometry";
 export function PresupuestoV2({
   hoja,
   archive,
-  abierta,
+  enCurso,
 }: {
   hoja: HojaPresupuesto;
   archive: V2Placa[];
-  abierta?: V2Placa | null;
+  enCurso?: boolean;
 }) {
+  const selladas = archive.filter((p) => p.estado === "cerrada" || p.estado === "ejecutada");
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-6" data-v2-presupuesto>
       <p className="small-caps text-[0.62rem] text-cyan">Hoja · NUEVA OBRA</p>
@@ -57,12 +58,16 @@ export function PresupuestoV2({
         </p>
       ) : null}
 
-      <section className="mt-10" data-v2-archivo data-abierta={abierta ? "1" : "0"}>
+      <section className="mt-10" data-v2-archivo data-abierta="0">
         <p className="small-caps text-[0.62rem] text-cyan">Archivo V2</p>
-        {abierta || archive.length ? (
+        {enCurso ? (
+          <p data-lamina-curso className="mt-3 font-serif text-sm italic text-ink">
+            Lámina en curso · total RD$ {formatInt(hoja.total)}
+          </p>
+        ) : null}
+        {selladas.length ? (
           <ul className="mt-3 grid gap-3 sm:grid-cols-2">
-            {abierta ? <PlacaCard key="abierta" p={abierta} /> : null}
-            {archive.map((p) => (
+            {selladas.map((p) => (
               <PlacaCard key={p.id} p={p} />
             ))}
           </ul>
@@ -82,7 +87,7 @@ function PlacaCard({ p }: { p: V2Placa }) {
       <p className="small-caps text-[0.62rem] text-stamp">
         {p.id} · {p.estado.toUpperCase()}
       </p>
-      <p className="font-serif text-lg text-ink">{p.estado === "abierta" ? "Lámina en curso" : formatFecha(p.closedAt)}</p>
+      <p className="font-serif text-lg text-ink">{formatFecha(p.closedAt)}</p>
       <p className="mt-1 font-sans text-sm tabular-nums text-ink">
         {formatMeters(p.largoMuroM)} muro · {formatM2(p.losaM2)} losa
       </p>

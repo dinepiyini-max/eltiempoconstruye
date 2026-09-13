@@ -124,7 +124,8 @@ export {
 } from "./clock.ts";
 export type { FrenteId, FrenteVista, FrontDone, V2ClockState, V2Pace, V2PlacaEstado } from "./clock.ts";
 
-export { canRedo, canUndo, histInit, histPush, histRedo, histUndo } from "./history.ts";
+export { panelCantidad } from "./panel.ts";
+export type { PanelCantidad, PanelKind, PanelScene } from "./panel.ts";
 
 export {
   V2_BAK_KEY,
