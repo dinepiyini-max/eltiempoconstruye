@@ -3,6 +3,7 @@ import { ModeTabs } from "@/components/obra/ModeTabs";
 import { formatInt } from "@/lib/obra/format";
 import { hojaPresupuesto } from "@/lib/obra/v2/cost";
 import { formatM2, formatMeters, muroLargo, polygonArea, vigaLargo } from "@/lib/obra/v2/geometry";
+import { laminaAbierta } from "@/lib/obra/v2/clock";
 import { takeoffColumna, takeoffLosa, takeoffMuro, takeoffScene, takeoffViga, takeoffZapata } from "@/lib/obra/v2/quantity";
 import { useNueva, type V2Tool } from "@/lib/obra/v2/store";
 import { NuevaCanvas } from "./NuevaCanvas";
@@ -122,6 +123,8 @@ export function NuevaObra() {
   const wallQty = selectedWall ? takeoffMuro(selectedWall, undefined, openings) : null;
   const hoja = hojaPresupuesto(sceneQty, { rework: clock.rework });
   const hasDrawing = walls.length + openings.length + columns.length + footings.length + beams.length + slabs.length > 0;
+  const enCurso = laminaAbierta(clock);
+  const canCerrar = hasDrawing && enCurso;
 
   const cota = draft
     ? formatMeters(muroLargo(draft))
@@ -224,6 +227,7 @@ export function NuevaObra() {
         </div>
         <nav
           data-v2-nav
+          data-lamina={enCurso ? "abierta" : "cerrada"}
           className="mt-2 flex flex-wrap items-center gap-1 border-t border-rule/60 pt-2"
           aria-label="Hojas V2"
         >
@@ -232,7 +236,7 @@ export function NuevaObra() {
           <ToolBtn on={page === "ejecucion"} onClick={() => setPage("ejecucion")} label="EJECUCIÓN" />
           <span className="mx-1 hidden h-4 w-px bg-rule/80 sm:inline-block" />
           <ToolBtn on={false} onClick={() => setConfirmNueva(true)} label="NUEVA LÁMINA" />
-          <ToolBtn on={false} onClick={() => cerrarLamina()} label="CERRAR LÁMINA" disabled={!hasDrawing} />
+          <ToolBtn on={false} onClick={() => cerrarLamina()} label="CERRAR LÁMINA" disabled={!canCerrar} />
         </nav>
         {confirmNueva ? (
           <div
@@ -301,7 +305,7 @@ export function NuevaObra() {
           hoja={hoja}
           archive={archive}
           abierta={
-            hasDrawing && !clock.sealed
+            enCurso
               ? {
                   id: "ABIERTA",
                   closedAt: "",

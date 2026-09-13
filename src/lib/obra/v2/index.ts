@@ -117,6 +117,7 @@ export {
   clampDone,
   formatLaminaClock,
   idleClock,
+  laminaAbierta,
   pctOf,
   scopeFromScene,
   tickFronts,

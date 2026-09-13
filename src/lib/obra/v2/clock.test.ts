@@ -9,6 +9,8 @@ import {
   assembleFrentes,
   clampDone,
   formatLaminaClock,
+  idleClock,
+  laminaAbierta,
   scopeFromScene,
   tickFronts,
 } from "./clock.ts";
@@ -77,5 +79,12 @@ describe("v2 clock aislado", () => {
     assert.equal(after.find((f) => f.id === "cim")?.status, "done");
     assert.match(absenceLine({ id: "alb", pct: 12 }) ?? "", /ALBAÑILERÍA \+12%/);
     assert.equal(formatLaminaClock(125000), "02:05");
+  });
+
+  it("lámina abierta hasta sello; placaId también sella", () => {
+    const idle = idleClock();
+    assert.equal(laminaAbierta(idle), true);
+    assert.equal(laminaAbierta({ ...idle, sealed: true, placaId: "A-001" }), false);
+    assert.equal(laminaAbierta({ ...idle, sealed: false, placaId: "A-002" }), false);
   });
 });

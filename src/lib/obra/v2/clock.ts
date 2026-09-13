@@ -78,6 +78,11 @@ export function idleClock(): V2ClockState {
   };
 }
 
+/** Lámina en curso (tarjeta ABIERTA). Sellada = ya hay placa. */
+export function laminaAbierta(clock: Pick<V2ClockState, "sealed" | "placaId">): boolean {
+  return clock.sealed !== true && !clock.placaId;
+}
+
 export function scopeFromScene(s: SceneForClock): FrontScope {
   return {
     cim: (s.footings ?? []).length,

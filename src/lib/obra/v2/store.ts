@@ -39,6 +39,7 @@ import {
   assembleFrentes,
   clampDone,
   idleClock,
+  laminaAbierta,
   scopeFromScene,
   tickFronts,
   type V2ClockState,
@@ -594,6 +595,10 @@ export const useNueva = create<NuevaStore>((set, get) => ({
 
   cerrarLamina: () => {
     const s = get();
+    if (!laminaAbierta(s.clock)) {
+      set({ page: "presupuesto", lastTick: null });
+      return s.clock.placaId;
+    }
     if (
       drawingIsEmpty({
         walls: s.walls,

@@ -576,7 +576,7 @@ export function placaFromScene(
 
 /**
  * Un cierre = una placa de esta lámina.
- * Si ya está sellada, actualiza esa placa. Nunca clona.
+ * Si ya está sellada: no-op. Cero A-00N nueva.
  */
 export function sealArchive(
   archive: readonly V2Placa[],
@@ -584,32 +584,23 @@ export function sealArchive(
   clock: V2ClockState,
   draft: V2Placa,
 ): { archive: V2Placa[]; nextArchiveSeq: number; clock: V2ClockState; id: string } {
-  const wantEjec = draft.estado === "ejecutada" || clock.executed;
-  const estado: Exclude<V2PlacaEstado, "abierta"> = wantEjec ? "ejecutada" : "cerrada";
   const known = clock.placaId && archive.some((p) => p.id === clock.placaId) ? clock.placaId : null;
   const existingId = known ?? (clock.sealed && archive.length ? archive[archive.length - 1]!.id : null);
   if (existingId) {
-    const idx = archive.findIndex((p) => p.id === existingId);
-    const prev = archive[idx]!;
-    const merged: V2Placa = {
-      ...draft,
-      id: prev.id,
-      closedAt: prev.closedAt,
-      estado: prev.estado === "ejecutada" || estado === "ejecutada" ? "ejecutada" : "cerrada",
-    };
     return {
-      archive: archive.map((p, i) => (i === idx ? merged : p)),
+      archive: archive.map((p) => p),
       nextArchiveSeq,
       clock: {
         ...clock,
         sealed: true,
-        executed: merged.estado === "ejecutada",
-        placaId: prev.id,
-        pace: merged.estado === "ejecutada" ? "pausa" : clock.pace,
+        placaId: existingId,
+        executed: clock.executed || archive.find((p) => p.id === existingId)?.estado === "ejecutada",
       },
-      id: prev.id,
+      id: existingId,
     };
   }
+  const wantEjec = draft.estado === "ejecutada" || clock.executed;
+  const estado: Exclude<V2PlacaEstado, "abierta"> = wantEjec ? "ejecutada" : "cerrada";
   const id = draft.id || placaId(nextArchiveSeq);
   const placa: V2Placa = { ...draft, id, estado };
   const seq = Number(String(id).replace(/^A-/, ""));

@@ -221,7 +221,7 @@ describe("v2 persist aislamiento", () => {
     assert.equal(storage.getItem("obra.jefe"), yuna);
   });
 
-  it("un cierre = una placa; el segundo actualiza y no clona", () => {
+  it("un cierre = una placa; el segundo es no-op", () => {
     const wall = createMuro({ x: 0, y: 0 }, { x: 8, y: 0 }, "M-001");
     const losa = createLosa(
       [
@@ -252,10 +252,12 @@ describe("v2 persist aislamiento", () => {
     });
     assert.equal(again.archive.length, 1);
     assert.equal(again.archive[0]?.id, "A-001");
-    assert.equal(again.archive[0]?.estado, "ejecutada");
+    assert.equal(again.archive[0]?.estado, "cerrada");
+    assert.equal(again.nextArchiveSeq, first.nextArchiveSeq);
     const reset = resetDrawing({ ...emptyV2(), archive: again.archive, nextArchiveSeq: again.nextArchiveSeq });
     assert.equal(reset.archive.length, 1);
     assert.equal(reset.clock.sealed, false);
+    assert.equal(reset.clock.placaId, null);
   });
 
   it("hidrata clones consecutivos EJECUTADA como una sola placa", () => {

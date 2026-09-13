@@ -57,7 +57,7 @@ export function PresupuestoV2({
         </p>
       ) : null}
 
-      <section className="mt-10" data-v2-archivo>
+      <section className="mt-10" data-v2-archivo data-abierta={abierta ? "1" : "0"}>
         <p className="small-caps text-[0.62rem] text-cyan">Archivo V2</p>
         {abierta || archive.length ? (
           <ul className="mt-3 grid gap-3 sm:grid-cols-2">
