@@ -11,6 +11,7 @@ import {
   measure,
   rectPoly,
   scaleLosaToArea,
+  scaleLosaToSides,
 } from "./geometry.ts";
 import {
   takeoff,
@@ -110,5 +111,25 @@ describe("v2 quantity", () => {
     assert.equal(qa.areaM2, 12);
     assert.ok(Math.abs(qb.areaM2 - 6) < 1e-6);
     assert.ok(Math.abs(qb.hormigonM3 - qa.hormigonM3 / 2) < 1e-6);
+  });
+
+  it("losa por lados 4×3 → 8×2 sube el hormigón", () => {
+    const a = createLosa(rectPoly({ x: 0, y: 0 }, { x: 4, y: 3 }), "L-001");
+    const b = scaleLosaToSides(a, 8, 2);
+    const qa = takeoffLosa(a);
+    const qb = takeoffLosa(b);
+    assert.ok(Math.abs(qa.hormigonM3 - 12 * V2_LOSA_PLANTA.espesorM) < 1e-6);
+    assert.ok(Math.abs(qb.hormigonM3 - 16 * V2_LOSA_PLANTA.espesorM) < 1e-6);
+    assert.ok(qb.hormigonM3 > qa.hormigonM3);
+  });
+
+  it("viga 0.20×0.40 hormigón > 0.15×0.25", () => {
+    const slim = createViga({ x: 0, y: 0 }, { x: 4, y: 0 }, "VG-001", 0.15, 0.25);
+    const fat = createViga({ x: 0, y: 0 }, { x: 4, y: 0 }, "VG-002", 0.2, 0.4);
+    const qs = takeoffViga(slim);
+    const qf = takeoffViga(fat);
+    assert.ok(Math.abs(qs.hormigonM3 - 4 * 0.15 * 0.25) < 1e-9);
+    assert.ok(Math.abs(qf.hormigonM3 - 4 * 0.2 * 0.4) < 1e-9);
+    assert.ok(qf.hormigonM3 > qs.hormigonM3);
   });
 });

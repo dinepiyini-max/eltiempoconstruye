@@ -4,7 +4,7 @@
  * Al cambiar de pieza, el caller pinta solo los campos de `kind` — cero restos.
  */
 import type { Columna, Hueco, Losa, Muro, Viga, Zapata } from "./geometry.ts";
-import { muroHiladas } from "./geometry.ts";
+import { huecoAltoDe, losaLados, muroHiladas } from "./geometry.ts";
 import {
   takeoffColumna,
   takeoffLosa,
@@ -43,7 +43,11 @@ export type PanelCantidad = {
   espesor: number | null;
   seccion: string | null;
   huecoAncho: number | null;
+  huecoAlto: number | null;
   parentWallId: string | null;
+  losaLargo: number | null;
+  losaAncho: number | null;
+  canto: number | null;
 };
 
 const EMPTY: PanelCantidad = {
@@ -62,7 +66,11 @@ const EMPTY: PanelCantidad = {
   espesor: null,
   seccion: null,
   huecoAncho: null,
+  huecoAlto: null,
   parentWallId: null,
+  losaLargo: null,
+  losaAncho: null,
+  canto: null,
 };
 
 function fmtSeccion(a: number, b: number): string {
@@ -97,7 +105,11 @@ export function panelCantidad(scene: PanelScene, selectedId: string | null): Pan
       espesor: null,
       seccion: null,
       huecoAncho: null,
+      huecoAlto: null,
       parentWallId: null,
+      losaLargo: null,
+      losaAncho: null,
+      canto: null,
     };
   }
 
@@ -130,7 +142,11 @@ export function panelCantidad(scene: PanelScene, selectedId: string | null): Pan
       espesor: null,
       seccion: null,
       huecoAncho: hueco.ancho,
+      huecoAlto: huecoAltoDe(hueco),
       parentWallId: padre?.id ?? hueco.wallId,
+      losaLargo: null,
+      losaAncho: null,
+      canto: null,
     };
   }
 
@@ -155,7 +171,11 @@ export function panelCantidad(scene: PanelScene, selectedId: string | null): Pan
       espesor: muro.espesor,
       seccion: null,
       huecoAncho: null,
+      huecoAlto: null,
       parentWallId: null,
+      losaLargo: null,
+      losaAncho: null,
+      canto: null,
     };
   }
 
@@ -165,7 +185,7 @@ export function panelCantidad(scene: PanelScene, selectedId: string | null): Pan
     return {
       kind: "columna",
       title: col.id,
-      largo: null,
+      largo: col.lado,
       alto: V2_COLUMNA.altoM,
       hiladas: null,
       areaNeta: null,
@@ -178,7 +198,11 @@ export function panelCantidad(scene: PanelScene, selectedId: string | null): Pan
       espesor: null,
       seccion: fmtSeccion(col.lado, col.lado),
       huecoAncho: null,
+      huecoAlto: null,
       parentWallId: null,
+      losaLargo: null,
+      losaAncho: null,
+      canto: null,
     };
   }
 
@@ -188,7 +212,7 @@ export function panelCantidad(scene: PanelScene, selectedId: string | null): Pan
     return {
       kind: "zapata",
       title: zap.id,
-      largo: null,
+      largo: zap.lado,
       alto: null,
       hiladas: null,
       areaNeta: null,
@@ -201,13 +225,18 @@ export function panelCantidad(scene: PanelScene, selectedId: string | null): Pan
       espesor: V2_ZAPATA.cantoM,
       seccion: fmtSeccion(zap.lado, zap.lado),
       huecoAncho: null,
+      huecoAlto: null,
       parentWallId: null,
+      losaLargo: null,
+      losaAncho: null,
+      canto: null,
     };
   }
 
   const viga = beams.find((v) => v.id === selectedId);
   if (viga) {
     const q = takeoffViga(viga);
+    const canto = viga.canto ?? V2_VIGA.cantoM;
     return {
       kind: "viga",
       title: viga.id,
@@ -222,15 +251,20 @@ export function panelCantidad(scene: PanelScene, selectedId: string | null): Pan
       aceroT: q.aceroT,
       losaM2: null,
       espesor: null,
-      seccion: fmtSeccion(viga.ancho, V2_VIGA.cantoM),
+      seccion: fmtSeccion(viga.ancho, canto),
       huecoAncho: null,
+      huecoAlto: null,
       parentWallId: null,
+      losaLargo: null,
+      losaAncho: null,
+      canto,
     };
   }
 
   const losa = slabs.find((l) => l.id === selectedId);
   if (losa) {
     const q = takeoffLosa(losa);
+    const lados = losaLados(losa);
     return {
       kind: "losa",
       title: losa.id,
@@ -244,10 +278,14 @@ export function panelCantidad(scene: PanelScene, selectedId: string | null): Pan
       hormigonM3: q.hormigonM3,
       aceroT: q.aceroT,
       losaM2: q.areaM2,
-      espesor: V2_LOSA_PLANTA.espesorM,
+      espesor: losa.espesor ?? V2_LOSA_PLANTA.espesorM,
       seccion: null,
       huecoAncho: null,
+      huecoAlto: null,
       parentWallId: null,
+      losaLargo: lados.largo,
+      losaAncho: lados.ancho,
+      canto: null,
     };
   }
 

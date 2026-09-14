@@ -1,6 +1,6 @@
 import { formatInt } from "@/lib/obra/format";
 import type { HojaPresupuesto, PiezaLinea } from "@/lib/obra/v2/cost";
-import type { V2Placa } from "@/lib/obra/v2/persist-v2";
+import { displayLaminaNombre, type V2Placa } from "@/lib/obra/v2/persist-v2";
 import { formatM2, formatMeters } from "@/lib/obra/v2/geometry";
 
 export function PresupuestoV2({
@@ -8,6 +8,7 @@ export function PresupuestoV2({
   piezas,
   archive,
   enCurso,
+  nombre,
   onAbrir,
   onPieza,
 }: {
@@ -15,14 +16,19 @@ export function PresupuestoV2({
   piezas: PiezaLinea[];
   archive: V2Placa[];
   enCurso?: boolean;
+  nombre?: string;
   onAbrir?: (id: string) => void;
   onPieza?: (id: string) => void;
 }) {
   const selladas = archive.filter((p) => p.estado === "cerrada" || p.estado === "ejecutada");
+  const lamina = displayLaminaNombre(nombre);
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-6" data-v2-presupuesto>
       <p className="small-caps text-[0.62rem] text-cyan">Hoja · NUEVA OBRA</p>
       <h2 className="font-serif text-3xl text-ink">Presupuesto</h2>
+      <p className="mt-1 font-serif text-lg italic text-ink" data-lamina-nombre>
+        {lamina}
+      </p>
       {hoja.empty ? (
         <p className="mt-8 max-w-md font-serif text-lg italic leading-snug text-ink-soft">
           Dibuja en la lámina. Aquí sale el costo.
@@ -95,7 +101,7 @@ export function PresupuestoV2({
         <p className="small-caps text-[0.62rem] text-cyan">Archivo V2</p>
         {enCurso ? (
           <p data-lamina-curso className="mt-3 font-serif text-sm italic text-ink">
-            Lámina en curso · total RD$ {formatInt(hoja.total)}
+            {lamina} · en curso · total RD$ {formatInt(hoja.total)}
           </p>
         ) : null}
         {selladas.length ? (
@@ -126,7 +132,10 @@ function PlacaCard({ p, onAbrir }: { p: V2Placa; onAbrir?: (id: string) => void 
         <p className="small-caps text-[0.62rem] text-stamp">
           {p.id} · {p.estado.toUpperCase()}
         </p>
-        <p className="font-serif text-lg text-ink">{formatFecha(p.closedAt)}</p>
+        <p className="font-serif text-lg text-ink" data-placa-nombre>
+          {displayLaminaNombre(p.nombre)}
+        </p>
+        <p className="mt-1 font-serif text-sm italic text-ink-soft">{formatFecha(p.closedAt)}</p>
         <p className="mt-1 font-sans text-sm tabular-nums text-ink">
           {formatMeters(p.largoMuroM)} muro · {formatM2(p.losaM2)} losa
         </p>

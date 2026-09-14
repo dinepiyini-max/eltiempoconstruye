@@ -47,6 +47,8 @@ describe("v2 panel cantidad", () => {
     assert.equal(p.aceroT, ql.aceroT);
     assert.equal(p.losaM2, 12);
     assert.equal(p.espesor, 0.12);
+    assert.equal(p.losaLargo, 4);
+    assert.equal(p.losaAncho, 3);
   });
 
   it("SEL muro: blocks de ese id, alto 2.60, 13 hiladas", () => {
@@ -68,6 +70,7 @@ describe("v2 panel cantidad", () => {
     const p = panelCantidad(withDoor, "P-001");
     assert.equal(p.kind, "hueco");
     assert.equal(p.huecoAncho, 0.9);
+    assert.equal(p.huecoAlto, 2.1);
     assert.equal(p.parentWallId, "M-001");
     assert.equal(p.largo, null);
     assert.equal(p.areaNeta, null);
@@ -94,6 +97,7 @@ describe("v2 panel cantidad", () => {
     assert.equal(pv.kind, "viga");
     assert.equal(pv.largo, 5);
     assert.equal(pv.seccion, "0.20 × 0.30 m");
+    assert.equal(pv.canto, 0.3);
     assert.equal(pv.blocks, null);
   });
 });

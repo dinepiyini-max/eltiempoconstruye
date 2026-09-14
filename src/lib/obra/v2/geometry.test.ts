@@ -19,6 +19,7 @@ import {
   huecoOverlaps,
   lengthMeters,
   losaArea,
+  losaLados,
   measure,
   muroHiladas,
   muroId,
@@ -33,7 +34,10 @@ import {
   rectPoly,
   sampleHeights,
   scaleLosaToArea,
+  scaleLosaToSides,
   scaleMuroFromStart,
+  scaleVigaFromStart,
+  setHuecoMedida,
   snapDraft,
   snapZapataCenter,
   structId,
@@ -87,7 +91,8 @@ describe("v2 geometry", () => {
     assert.equal(muroLargo(muro), 8);
     assert.equal(formatMeters(muroLargo(muro)), "8.00 m");
     assert.equal(muro.id, "M-001");
-    assert.equal(muro.espesor, 0.2);
+    assert.equal(muro.espesor, V2_MURO.espesorM);
+    assert.equal(V2_MURO.espesorM, 0.15);
     assert.equal(muroPoly(muro).length, 4);
   });
 
@@ -186,5 +191,37 @@ describe("v2 geometry", () => {
     assert.ok(Math.abs(losaArea(n) - 6) < 1e-6);
     assert.equal(n.id, "L-001");
     assert.equal(losaArea(losa), 12);
+  });
+
+  it("losa por lados: 4×3 → 8×2; largo = lado mayor", () => {
+    const losa = createLosa(rectPoly({ x: 0, y: 0 }, { x: 4, y: 3 }), "L-001");
+    assert.deepEqual(losaLados(losa), { largo: 4, ancho: 3 });
+    const n = scaleLosaToSides(losa, 8, 2);
+    const lados = losaLados(n);
+    assert.ok(Math.abs(lados.largo - 8) < 1e-6);
+    assert.ok(Math.abs(lados.ancho - 2) < 1e-6);
+    assert.ok(Math.abs(losaArea(n) - 16) < 1e-6);
+    assert.equal(n.id, "L-001");
+    assert.equal(losa.espesor, n.espesor);
+  });
+
+  it("viga escala desde el arranque y conserva canto", () => {
+    const v = createViga({ x: 0, y: 1 }, { x: 5, y: 1 }, "VG-001", 0.15, 0.25);
+    const n = scaleVigaFromStart(v, 8);
+    assert.equal(n.a.x, 0);
+    assert.equal(n.a.y, 1);
+    assert.equal(vigaLargo(n), 8);
+    assert.equal(n.ancho, 0.15);
+    assert.equal(n.canto, 0.25);
+  });
+
+  it("puerta 0.90 → 1.80 cabe en muro 8 m y no solapa", () => {
+    const muro = createMuro({ x: 0, y: 0 }, { x: 8, y: 0 }, "M-001");
+    const p = createHueco("puerta", "M-001", 3, "P-001", 0.9);
+    const n = setHuecoMedida(p, muro, [], V2_HUECO.marquesina.anchoM, V2_HUECO.marquesina.altoM);
+    assert.ok(n);
+    assert.equal(n?.ancho, 1.8);
+    assert.equal(n?.alto, 2.1);
+    assert.equal(n?.id, "P-001");
   });
 });

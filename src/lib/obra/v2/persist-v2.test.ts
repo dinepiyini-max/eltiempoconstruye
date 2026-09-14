@@ -18,7 +18,10 @@ import {
   V2_ARCHIVE_CAP,
   dibujoFromPlaca,
   actualizarPlaca,
+  displayLaminaNombre,
+  sanitizeNombre,
 } from "./persist-v2.ts";
+import { V2_NOMBRE_VACIO } from "./tables.ts";
 
 class Mem {
   m = new Map<string, string>();
@@ -174,6 +177,7 @@ describe("v2 persist aislamiento", () => {
     storage.setItem("obra.visita", yuna);
     const placa = {
       id: "A-001",
+      nombre: "Lámina 01",
       closedAt: "2026-09-12T14:00:00.000Z",
       largoMuroM: 8,
       losaM2: 12,
@@ -361,5 +365,56 @@ describe("v2 persist aislamiento", () => {
     assert.equal(again.archive[0]?.id, "A-001");
     const empty = actualizarPlaca(upd!.archive, upd!.clock, { ...scene1, walls: [] }, { rework: false });
     assert.equal(empty, null);
+  });
+
+  it("vacío = Lámina 01; nombre viaja en save y en la placa", () => {
+    assert.equal(displayLaminaNombre(""), V2_NOMBRE_VACIO);
+    assert.equal(displayLaminaNombre("   "), V2_NOMBRE_VACIO);
+    assert.equal(displayLaminaNombre(null), V2_NOMBRE_VACIO);
+    assert.equal(displayLaminaNombre("Casa norte"), "Casa norte");
+    assert.equal(sanitizeNombre("  Casa   norte  "), "Casa norte");
+    const wall = createMuro({ x: 0, y: 0 }, { x: 8, y: 0 }, "M-001");
+    const scene = {
+      walls: [wall],
+      openings: [],
+      columns: [],
+      footings: [],
+      beams: [],
+      slabs: [],
+    };
+    const unnamed = placaFromScene(scene, { id: placaId(1), estado: "cerrada", rework: false });
+    assert.equal(unnamed.nombre, V2_NOMBRE_VACIO);
+    const named = placaFromScene(scene, {
+      id: placaId(1),
+      estado: "cerrada",
+      rework: false,
+      nombre: "Casa norte",
+    });
+    assert.equal(named.nombre, "Casa norte");
+    const storage = new Mem();
+    const doc = { ...emptyV2(), walls: [wall], nombre: "Casa norte", nextSeq: 2 };
+    assert.equal(saveV2(doc, storage), true);
+    const loaded = loadV2(storage);
+    assert.equal(loaded.nombre, "Casa norte");
+    const legacy = hydrateV2({
+      product: "obra.v2",
+      version: 1,
+      walls: [{ id: "M-001", a: { x: 0, y: 0 }, b: { x: 8, y: 0 }, espesor: 0.2 }],
+      archive: [
+        {
+          id: "A-001",
+          closedAt: "2026-09-12",
+          largoMuroM: 8,
+          losaM2: 0,
+          estimado: 1,
+          estado: "cerrada",
+          recuento: { muros: 1, vanos: 0, columnas: 0, zapatas: 0, vigas: 0, losas: 0 },
+        },
+      ],
+    });
+    assert.ok(legacy);
+    assert.equal(legacy.nombre, "");
+    assert.equal(legacy.archive[0]?.nombre, V2_NOMBRE_VACIO);
+    assert.equal(displayLaminaNombre(legacy.archive[0]?.nombre), "Lámina 01");
   });
 });

@@ -2,7 +2,7 @@
  * Quantity V2 — takeoff. Tablas propias. No lee STRUCTURE_DEF.
  */
 import type { Columna, Hueco, Losa, Measured, Muro, Viga, Zapata } from "./geometry.ts";
-import { huecoAlto, losaArea, muroLargo, vigaLargo } from "./geometry.ts";
+import { huecoAltoDe, losaArea, muroLargo, vigaLargo } from "./geometry.ts";
 import {
   V2_COLUMNA,
   V2_LOSA_PLANTA,
@@ -46,33 +46,34 @@ function vanoArea(m: Muro, huecos: readonly Hueco[], altoM: number): number {
   let a = 0;
   for (const h of huecos) {
     if (h.wallId !== m.id) continue;
-    a += h.ancho * Math.min(huecoAlto(h.kind), altoM);
+    a += h.ancho * Math.min(huecoAltoDe(h), altoM);
   }
   return a;
 }
 
-export function takeoffMuro(m: Muro, altoM = V2_MURO.altoM, huecos: readonly Hueco[] = []): TakeoffMuro {
+export function takeoffMuro(m: Muro, altoM?: number, huecos: readonly Hueco[] = []): TakeoffMuro {
   const largoM = muroLargo(m);
   const espesorM = m.espesor;
-  const areaM2 = Math.max(0, largoM * altoM);
-  const vanoM2 = Math.min(areaM2, Math.max(0, vanoArea(m, huecos, altoM)));
+  const alto = altoM ?? m.alto ?? V2_MURO.altoM;
+  const areaM2 = Math.max(0, largoM * alto);
+  const vanoM2 = Math.min(areaM2, Math.max(0, vanoArea(m, huecos, alto)));
   const areaNetaM2 = Math.max(0, areaM2 - vanoM2);
   const volumenM3 = Math.max(0, areaNetaM2 * espesorM);
   const blocksEst = Math.ceil(areaNetaM2 / V2_MURO.blockFaceM2 - 1e-9);
   const hormigonM3 = volumenM3;
   const aceroT = hormigonM3 * V2_SECTIONS.contencion.steelTPerM3;
-  return { largoM, espesorM, altoM, areaM2, areaNetaM2, vanoM2, volumenM3, blocksEst, hormigonM3, aceroT };
+  return { largoM, espesorM, altoM: alto, areaM2, areaNetaM2, vanoM2, volumenM3, blocksEst, hormigonM3, aceroT };
 }
 
 export function takeoffMuros(
   muros: readonly Muro[],
-  altoM = V2_MURO.altoM,
+  altoM?: number,
   huecos: readonly Hueco[] = [],
 ): TakeoffMuro {
   const empty: TakeoffMuro = {
     largoM: 0,
     espesorM: V2_MURO.espesorM,
-    altoM,
+    altoM: altoM ?? V2_MURO.altoM,
     areaM2: 0,
     areaNetaM2: 0,
     vanoM2: 0,
@@ -82,11 +83,11 @@ export function takeoffMuros(
     aceroT: 0,
   };
   return muros.reduce((acc, m) => {
-    const q = takeoffMuro(m, altoM, huecos);
+    const q = takeoffMuro(m, altoM ?? m.alto, huecos);
     return {
       largoM: acc.largoM + q.largoM,
       espesorM: q.espesorM,
-      altoM,
+      altoM: q.altoM,
       areaM2: acc.areaM2 + q.areaM2,
       areaNetaM2: acc.areaNetaM2 + q.areaNetaM2,
       vanoM2: acc.vanoM2 + q.vanoM2,
@@ -110,13 +111,15 @@ export function takeoffZapata(z: Zapata): { hormigonM3: number; aceroT: number }
 
 export function takeoffViga(v: Viga): { largoM: number; hormigonM3: number; aceroT: number } {
   const largoM = vigaLargo(v);
-  const hormigonM3 = Math.max(0, largoM * v.ancho * V2_VIGA.cantoM);
+  const canto = v.canto ?? V2_VIGA.cantoM;
+  const hormigonM3 = Math.max(0, largoM * v.ancho * canto);
   return { largoM, hormigonM3, aceroT: hormigonM3 * V2_VIGA.steelTPerM3 };
 }
 
 export function takeoffLosa(l: Losa): { areaM2: number; hormigonM3: number; aceroT: number } {
   const areaM2 = Math.max(0, losaArea(l));
-  const hormigonM3 = areaM2 * V2_LOSA_PLANTA.espesorM;
+  const espesor = l.espesor ?? V2_LOSA_PLANTA.espesorM;
+  const hormigonM3 = areaM2 * espesor;
   return { areaM2, hormigonM3, aceroT: hormigonM3 * V2_LOSA_PLANTA.steelTPerM3 };
 }
 
@@ -146,8 +149,8 @@ export type SceneQty = {
 
 export function takeoffScene(s: SceneQty): TakeoffScene {
   const openings = s.openings ?? [];
-  const wallsNet = takeoffMuros(s.walls, V2_MURO.altoM, openings);
-  const wallsGross = takeoffMuros(s.walls, V2_MURO.altoM, []);
+  const wallsNet = takeoffMuros(s.walls, undefined, openings);
+  const wallsGross = takeoffMuros(s.walls, undefined, []);
   let hormigonM3 = wallsNet.hormigonM3;
   let aceroT = wallsNet.aceroT;
   let largoM = wallsNet.largoM;

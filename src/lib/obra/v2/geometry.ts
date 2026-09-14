@@ -125,18 +125,26 @@ export type Muro = {
   a: Pt;
   b: Pt;
   espesor: number;
+  alto: number;
 };
 
 export function muroId(seq: number): string {
   return `M-${String(seq).padStart(3, "0")}`;
 }
 
-export function createMuro(a: Pt, b: Pt, id: string, espesor: number = V2_MURO.espesorM): Muro {
+export function createMuro(
+  a: Pt,
+  b: Pt,
+  id: string,
+  espesor: number = V2_MURO.espesorM,
+  alto: number = V2_MURO.altoM,
+): Muro {
   return {
     id,
     a: { x: a.x, y: a.y },
     b: { x: b.x, y: b.y },
-    espesor,
+    espesor: Math.max(V2_MURO.minEspesorM, espesor),
+    alto: Math.max(V2_MURO.minAltoM, alto),
   };
 }
 
@@ -182,7 +190,7 @@ export function scaleMuroFromStart(m: Muro, largoM: number, angleDeg: number = S
     bx = m.a.x + (dx / cur) * L;
     by = m.a.y + (dy / cur) * L;
   }
-  return { id: m.id, a: { x: m.a.x, y: m.a.y }, b: { x: bx, y: by }, espesor: m.espesor };
+  return createMuro(m.a, { x: bx, y: by }, m.id, m.espesor, m.alto);
 }
 
 /** Rectángulo de planta del muro (4 vértices). */
@@ -289,6 +297,7 @@ export type Hueco = {
   /** Centro del vano, metros desde el extremo a. */
   alongM: number;
   ancho: number;
+  alto: number;
 };
 
 export function huecoId(kind: HuecoKind, seq: number): string {
@@ -312,12 +321,17 @@ export function createHueco(
   alongM: number,
   id: string,
   ancho: number,
+  alto?: number,
 ): Hueco {
-  return { id, kind, wallId, alongM, ancho };
+  return { id, kind, wallId, alongM, ancho, alto: alto ?? huecoAlto(kind) };
 }
 
 export function huecoAlto(kind: HuecoKind): number {
   return kind === "puerta" ? V2_HUECO.puerta.altoM : V2_HUECO.ventana.altoM;
+}
+
+export function huecoAltoDe(h: Pick<Hueco, "kind" | "alto">): number {
+  return h.alto > 0 ? h.alto : huecoAlto(h.kind);
 }
 
 export function huecoAnchoDefault(kind: HuecoKind): number {
@@ -440,11 +454,13 @@ export type Viga = {
   a: Pt;
   b: Pt;
   ancho: number;
+  canto: number;
 };
 
 export type Losa = {
   id: string;
   poly: Pt[];
+  espesor: number;
 };
 
 export function structId(prefix: string, seq: number): string {
@@ -475,12 +491,18 @@ export function createZapata(
   return { id, c: { x: c.x, y: c.y }, lado, columnId };
 }
 
-export function createViga(a: Pt, b: Pt, id: string, ancho: number = V2_VIGA.anchoM): Viga {
-  return { id, a: { x: a.x, y: a.y }, b: { x: b.x, y: b.y }, ancho };
+export function createViga(
+  a: Pt,
+  b: Pt,
+  id: string,
+  ancho: number = V2_VIGA.anchoM,
+  canto: number = V2_VIGA.cantoM,
+): Viga {
+  return { id, a: { x: a.x, y: a.y }, b: { x: b.x, y: b.y }, ancho, canto };
 }
 
-export function createLosa(poly: readonly Pt[], id: string): Losa {
-  return { id, poly: poly.map((p) => ({ x: p.x, y: p.y })) };
+export function createLosa(poly: readonly Pt[], id: string, espesor: number = V2_LOSA_PLANTA.espesorM): Losa {
+  return { id, poly: poly.map((p) => ({ x: p.x, y: p.y })), espesor };
 }
 
 /**
@@ -497,7 +519,68 @@ export function scaleLosaToArea(l: Losa, areaM2: number): Losa {
     x: c.x + (p.x - c.x) * k,
     y: c.y + (p.y - c.y) * k,
   }));
-  return createLosa(poly, l.id);
+  return createLosa(poly, l.id, l.espesor);
+}
+
+export function losaBBox(l: Pick<Losa, "poly">): { dx: number; dy: number } {
+  if (!l.poly.length) return { dx: 0, dy: 0 };
+  let minX = l.poly[0]!.x;
+  let maxX = minX;
+  let minY = l.poly[0]!.y;
+  let maxY = minY;
+  for (const p of l.poly) {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+  }
+  return { dx: maxX - minX, dy: maxY - minY };
+}
+
+/** Largo = lado mayor del bbox; ancho = el menor. */
+export function losaLados(l: Pick<Losa, "poly">): { largo: number; ancho: number } {
+  const { dx, dy } = losaBBox(l);
+  return dx >= dy ? { largo: dx, ancho: dy } : { largo: dy, ancho: dx };
+}
+
+/**
+ * Escala la losa por lados (no por m²). El lado mayor sigue siendo el largo.
+ */
+export function scaleLosaToSides(l: Losa, largoM: number, anchoM: number): Losa {
+  const { dx, dy } = losaBBox(l);
+  const largo = Math.max(V2_LOSA_PLANTA.minLadoM, largoM);
+  const ancho = Math.max(V2_LOSA_PLANTA.minLadoM, anchoM);
+  if (dx < 1e-6 || dy < 1e-6) return l;
+  const sx = dx >= dy ? largo / dx : ancho / dx;
+  const sy = dx >= dy ? ancho / dy : largo / dy;
+  const c = polygonCentroid(l.poly);
+  const poly = l.poly.map((p) => ({
+    x: c.x + (p.x - c.x) * sx,
+    y: c.y + (p.y - c.y) * sy,
+  }));
+  return createLosa(poly, l.id, l.espesor);
+}
+
+export function scaleVigaFromStart(v: Viga, largoM: number): Viga {
+  const dummy = createMuro(v.a, v.b, v.id, v.ancho);
+  const scaled = scaleMuroFromStart(dummy, Math.max(V2_VIGA.minLargoM, largoM));
+  return createViga(scaled.a, scaled.b, v.id, v.ancho, v.canto);
+}
+
+export function setHuecoMedida(
+  h: Hueco,
+  wall: Muro,
+  others: readonly Hueco[],
+  ancho: number,
+  alto: number,
+): Hueco | null {
+  const w = Math.max(V2_HUECO.minAnchoM, ancho);
+  const a = Math.max(0.4, alto);
+  const along = clampHuecoAlong(muroLargo(wall), w, h.alongM);
+  if (along == null) return null;
+  const next = createHueco(h.kind, h.wallId, along, h.id, w, a);
+  if (others.some((o) => o.id !== h.id && huecoOverlaps(o, next))) return null;
+  return next;
 }
 
 export function squarePoly(c: Pt, lado: number): Pt[] {

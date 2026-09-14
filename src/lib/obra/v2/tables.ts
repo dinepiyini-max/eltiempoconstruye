@@ -34,8 +34,11 @@ export const V2_SHEET = { widthM: 24, heightM: 16 } as const;
 /** Muro de fábrica. Alto y bloque para el takeoff mínimo. */
 export const V2_MURO = {
   altoM: 2.6,
-  espesorM: 0.2,
+  /** Block 6". Override en SEL. */
+  espesorM: 0.15,
   minLargoM: 0.3,
+  minAltoM: 0.4,
+  minEspesorM: 0.1,
   blockFaceM2: 0.08,
   /** Curso de block. 2.60 / 0.20 = 13 hiladas. */
   hiladaM: 0.2,
@@ -47,7 +50,9 @@ export const V2_MURO = {
 export const V2_HUECO = {
   puerta: { anchoM: 0.9, altoM: 2.1 },
   ventana: { anchoM: 1.2, altoM: 1.2 },
+  marquesina: { anchoM: 1.8, altoM: 2.1 },
   minJambaM: 0.08,
+  minAnchoM: 0.4,
 } as const;
 
 /** FASE F — estructura mínima. Precios de juego, no ERP. */
@@ -74,7 +79,26 @@ export const V2_VIGA = {
 export const V2_LOSA_PLANTA = {
   espesorM: 0.12,
   minAreaM2: 0.4,
+  minLadoM: 0.4,
   steelTPerM3: 0.1,
+} as const;
+
+/**
+ * Catálogo SEL. El número se puede escribir (override).
+ * No es el catálogo Yuna.
+ */
+export const V2_CATALOGO = {
+  muroEspesorM: [0.15] as const,
+  losaEspesorM: [0.1, 0.12, 0.15] as const,
+  viga: [
+    { ancho: 0.15, canto: 0.25 },
+    { ancho: 0.2, canto: 0.3 },
+    { ancho: 0.2, canto: 0.4 },
+  ] as const,
+  columnaLadoM: [0.2, 0.25, 0.3, 0.4] as const,
+  zapataLadoM: [0.6, 0.8, 1] as const,
+  puertaAnchoM: [0.8, 0.9, 1] as const,
+  ventanaAnchoM: [0.6, 1.2, 1.5] as const,
 } as const;
 
 /** Reloj de lámina. No es siteMinutes. */
@@ -90,3 +114,7 @@ export const V2_CUADRILLA = {
 
 /** Piezas en PRESUPUESTO. El total de la hoja no suma estas líneas. */
 export const V2_PIEZAS_CAP = 40;
+
+/** Nombre de lámina si el cajetín está vacío. */
+export const V2_NOMBRE_VACIO = "Lámina 01";
+export const V2_NOMBRE_CAP = 48;

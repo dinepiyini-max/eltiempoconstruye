@@ -19,7 +19,10 @@ import {
   placeHuecoOnMuro,
   polygonArea,
   scaleLosaToArea,
+  scaleLosaToSides,
   scaleMuroFromStart,
+  scaleVigaFromStart,
+  setHuecoMedida,
   snapDraft,
   snapZapataCenter,
   structId,
@@ -57,6 +60,8 @@ import {
   resetDrawing,
   saveV2,
   sealArchive,
+  sanitizeNombre,
+  displayLaminaNombre,
   actualizarPlaca as writePlaca,
   type V2Placa,
   type V2View,
@@ -98,6 +103,7 @@ type NuevaStore = {
   nextLosaSeq: number;
   nextArchiveSeq: number;
   archive: V2Placa[];
+  nombre: string;
   page: V2Page;
   clock: V2ClockState;
   lastTick: number | null;
@@ -123,7 +129,17 @@ type NuevaStore = {
   select: (id: string | null) => void;
   deleteSelected: () => void;
   setMuroLargo: (id: string, largoM: number) => void;
+  setMuroAlto: (id: string, altoM: number) => void;
+  setMuroEspesor: (id: string, espesorM: number) => void;
   setLosaArea: (id: string, areaM2: number) => void;
+  setLosaSides: (id: string, largoM: number, anchoM: number) => void;
+  setLosaEspesor: (id: string, espesorM: number) => void;
+  setVigaLargo: (id: string, largoM: number) => void;
+  setVigaSeccion: (id: string, ancho: number, canto: number) => void;
+  setColumnaLado: (id: string, ladoM: number) => void;
+  setZapataLado: (id: string, ladoM: number) => void;
+  setHueco: (id: string, ancho: number, alto: number) => void;
+  setNombre: (nombre: string) => void;
   undo: () => void;
   redo: () => void;
   snap: (raw: Pt, origin: Pt | null) => { point: Pt; kind: SnapKind };
@@ -148,12 +164,12 @@ function sceneOf(
   slabs: Losa[] = [],
 ): NuevaScene {
   return {
-    walls: walls.map((m) => createMuro(m.a, m.b, m.id, m.espesor)),
-    openings: openings.map((h) => createHueco(h.kind, h.wallId, h.alongM, h.id, h.ancho)),
+    walls: walls.map((m) => createMuro(m.a, m.b, m.id, m.espesor, m.alto)),
+    openings: openings.map((h) => createHueco(h.kind, h.wallId, h.alongM, h.id, h.ancho, h.alto)),
     columns: columns.map((c) => createColumna(c.c, c.id, c.lado)),
     footings: footings.map((z) => createZapata(z.c, z.id, z.lado, z.columnId)),
-    beams: beams.map((v) => createViga(v.a, v.b, v.id, v.ancho)),
-    slabs: slabs.map((l) => createLosa(l.poly, l.id)),
+    beams: beams.map((v) => createViga(v.a, v.b, v.id, v.ancho, v.canto)),
+    slabs: slabs.map((l) => createLosa(l.poly, l.id, l.espesor)),
   };
 }
 
@@ -178,6 +194,7 @@ function persistNow(get: () => NuevaStore) {
     archive: s.archive,
     clock: s.clock,
     view: s.view,
+    nombre: s.nombre,
   });
 }
 
@@ -248,6 +265,7 @@ function applyTick(
       id: placaId(nextArchiveSeq),
       estado: "ejecutada",
       rework: clock.rework,
+      nombre: displayLaminaNombre(s.nombre),
     });
     const sealed = sealArchive(archive, nextArchiveSeq, clock, draft);
     archive = sealed.archive;
@@ -287,6 +305,7 @@ export const useNueva = create<NuevaStore>((set, get) => ({
   nextLosaSeq: 1,
   nextArchiveSeq: 1,
   archive: [],
+  nombre: "",
   page: "lamina",
   clock: idleClock(),
   lastTick: null,
@@ -315,6 +334,7 @@ export const useNueva = create<NuevaStore>((set, get) => ({
       nextLosaSeq: doc.nextLosaSeq,
       nextArchiveSeq: doc.nextArchiveSeq,
       archive: doc.archive,
+      nombre: doc.nombre,
       clock: doc.clock,
       lastTick: null,
       notice: null,
@@ -481,11 +501,31 @@ export const useNueva = create<NuevaStore>((set, get) => ({
         if (h.wallId !== id) return h;
         const along = clampHuecoAlong(nextL, h.ancho, h.alongM);
         if (along == null) return null;
-        return createHueco(h.kind, h.wallId, along, h.id, h.ancho);
+        return createHueco(h.kind, h.wallId, along, h.id, h.ancho, h.alto);
       })
       .filter((h): h is Hueco => h != null);
     const walls = s.walls.map((w) => (w.id === id ? nextMuro : w));
     applyScene(set, get, sceneOf(walls, openings, s.columns, s.footings, s.beams, s.slabs), { selectedId: id });
+  },
+
+  setMuroAlto: (id, altoM) => {
+    const s = get();
+    const muro = s.walls.find((w) => w.id === id);
+    if (!muro) return;
+    const alto = Math.max(V2_MURO.minAltoM, altoM);
+    if (Math.abs(alto - muro.alto) < 1e-6) return;
+    const walls = s.walls.map((w) => (w.id === id ? createMuro(w.a, w.b, w.id, w.espesor, alto) : w));
+    applyScene(set, get, sceneOf(walls, s.openings, s.columns, s.footings, s.beams, s.slabs), { selectedId: id });
+  },
+
+  setMuroEspesor: (id, espesorM) => {
+    const s = get();
+    const muro = s.walls.find((w) => w.id === id);
+    if (!muro) return;
+    const espesor = Math.max(V2_MURO.minEspesorM, espesorM);
+    if (Math.abs(espesor - muro.espesor) < 1e-6) return;
+    const walls = s.walls.map((w) => (w.id === id ? createMuro(w.a, w.b, w.id, espesor, w.alto) : w));
+    applyScene(set, get, sceneOf(walls, s.openings, s.columns, s.footings, s.beams, s.slabs), { selectedId: id });
   },
 
   setLosaArea: (id, areaM2) => {
@@ -496,6 +536,87 @@ export const useNueva = create<NuevaStore>((set, get) => ({
     if (Math.abs(polygonArea(next.poly) - polygonArea(losa.poly)) < 1e-6) return;
     const slabs = s.slabs.map((l) => (l.id === id ? next : l));
     applyScene(set, get, sceneOf(s.walls, s.openings, s.columns, s.footings, s.beams, slabs), { selectedId: id });
+  },
+
+  setLosaSides: (id, largoM, anchoM) => {
+    const s = get();
+    const losa = s.slabs.find((l) => l.id === id);
+    if (!losa) return;
+    const next = scaleLosaToSides(losa, largoM, anchoM);
+    if (Math.abs(polygonArea(next.poly) - polygonArea(losa.poly)) < 1e-6) return;
+    const slabs = s.slabs.map((l) => (l.id === id ? next : l));
+    applyScene(set, get, sceneOf(s.walls, s.openings, s.columns, s.footings, s.beams, slabs), { selectedId: id });
+  },
+
+  setLosaEspesor: (id, espesorM) => {
+    const s = get();
+    const losa = s.slabs.find((l) => l.id === id);
+    if (!losa) return;
+    const espesor = Math.max(0.08, espesorM);
+    if (Math.abs(espesor - losa.espesor) < 1e-6) return;
+    const slabs = s.slabs.map((l) => (l.id === id ? createLosa(l.poly, l.id, espesor) : l));
+    applyScene(set, get, sceneOf(s.walls, s.openings, s.columns, s.footings, s.beams, slabs), { selectedId: id });
+  },
+
+  setVigaLargo: (id, largoM) => {
+    const s = get();
+    const viga = s.beams.find((v) => v.id === id);
+    if (!viga) return;
+    const next = scaleVigaFromStart(viga, largoM);
+    if (Math.abs(vigaLargo(next) - vigaLargo(viga)) < 1e-6) return;
+    const beams = s.beams.map((v) => (v.id === id ? next : v));
+    applyScene(set, get, sceneOf(s.walls, s.openings, s.columns, s.footings, beams, s.slabs), { selectedId: id });
+  },
+
+  setVigaSeccion: (id, ancho, canto) => {
+    const s = get();
+    const viga = s.beams.find((v) => v.id === id);
+    if (!viga) return;
+    const a = Math.max(0.1, ancho);
+    const c = Math.max(0.1, canto);
+    if (Math.abs(a - viga.ancho) < 1e-6 && Math.abs(c - viga.canto) < 1e-6) return;
+    const beams = s.beams.map((v) => (v.id === id ? createViga(v.a, v.b, v.id, a, c) : v));
+    applyScene(set, get, sceneOf(s.walls, s.openings, s.columns, s.footings, beams, s.slabs), { selectedId: id });
+  },
+
+  setColumnaLado: (id, ladoM) => {
+    const s = get();
+    const col = s.columns.find((c) => c.id === id);
+    if (!col) return;
+    const lado = Math.max(0.15, ladoM);
+    if (Math.abs(lado - col.lado) < 1e-6) return;
+    const columns = s.columns.map((c) => (c.id === id ? createColumna(c.c, c.id, lado) : c));
+    applyScene(set, get, sceneOf(s.walls, s.openings, columns, s.footings, s.beams, s.slabs), { selectedId: id });
+  },
+
+  setZapataLado: (id, ladoM) => {
+    const s = get();
+    const zap = s.footings.find((z) => z.id === id);
+    if (!zap) return;
+    const lado = Math.max(0.4, ladoM);
+    if (Math.abs(lado - zap.lado) < 1e-6) return;
+    const footings = s.footings.map((z) => (z.id === id ? createZapata(z.c, z.id, lado, z.columnId) : z));
+    applyScene(set, get, sceneOf(s.walls, s.openings, s.columns, footings, s.beams, s.slabs), { selectedId: id });
+  },
+
+  setHueco: (id, ancho, alto) => {
+    const s = get();
+    const hueco = s.openings.find((h) => h.id === id);
+    if (!hueco) return;
+    const wall = s.walls.find((w) => w.id === hueco.wallId);
+    if (!wall) return;
+    const next = setHuecoMedida(hueco, wall, s.openings, ancho, alto);
+    if (!next) return;
+    if (Math.abs(next.ancho - hueco.ancho) < 1e-6 && Math.abs(next.alto - hueco.alto) < 1e-6) return;
+    const openings = s.openings.map((h) => (h.id === id ? next : h));
+    applyScene(set, get, sceneOf(s.walls, openings, s.columns, s.footings, s.beams, s.slabs), { selectedId: id });
+  },
+
+  setNombre: (nombre) => {
+    const next = sanitizeNombre(nombre);
+    if (next === get().nombre) return;
+    set({ nombre: next });
+    persistNow(get);
   },
 
   deleteSelected: () => {
@@ -599,6 +720,7 @@ export const useNueva = create<NuevaStore>((set, get) => ({
       nextArchiveSeq: s.nextArchiveSeq,
       clock: s.clock,
       view: s.view,
+      nombre: s.nombre,
     });
     const present = emptyScene();
     set({
@@ -627,6 +749,7 @@ export const useNueva = create<NuevaStore>((set, get) => ({
       lastTick: null,
       notice: null,
       view: { panX: 0, panY: 0, ppm: 28 },
+      nombre: "",
     });
     persistNow(get);
   },
@@ -655,6 +778,7 @@ export const useNueva = create<NuevaStore>((set, get) => ({
       id: placaId(s.nextArchiveSeq),
       estado,
       rework: s.clock.rework,
+      nombre: displayLaminaNombre(s.nombre),
     });
     const sealed = sealArchive(s.archive, s.nextArchiveSeq, s.clock, draft);
     set({
@@ -686,6 +810,7 @@ export const useNueva = create<NuevaStore>((set, get) => ({
     const next = writePlaca(s.archive, s.clock, s, {
       rework: s.clock.rework,
       executed: s.clock.executed || allPresentDone(frentes),
+      nombre: displayLaminaNombre(s.nombre),
     });
     if (!next) return null;
     set({
@@ -750,6 +875,7 @@ export const useNueva = create<NuevaStore>((set, get) => ({
       },
       lastTick: null,
       notice: null,
+      nombre: p.nombre && p.nombre !== displayLaminaNombre("") ? p.nombre : "",
     });
     persistNow(get);
     return "ok";

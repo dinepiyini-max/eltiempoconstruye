@@ -23,7 +23,7 @@ import {
 } from "./geometry.ts";
 import { hojaPresupuesto } from "./cost.ts";
 import { takeoffScene } from "./quantity.ts";
-import { V2_COLUMNA, V2_HUECO, V2_MURO, V2_VIGA, V2_ZAPATA } from "./tables.ts";
+import { V2_COLUMNA, V2_HUECO, V2_LOSA_PLANTA, V2_MURO, V2_NOMBRE_CAP, V2_NOMBRE_VACIO, V2_VIGA, V2_ZAPATA } from "./tables.ts";
 import { idleClock, type V2ClockState, type V2PlacaEstado } from "./clock.ts";
 
 export const V2_LIVE_KEY = "obra.v2";
@@ -50,6 +50,7 @@ export type V2Dibujo = {
 
 export type V2Placa = {
   id: string;
+  nombre: string;
   closedAt: string;
   largoMuroM: number;
   losaM2: number;
@@ -85,6 +86,7 @@ export type V2Document = {
   nextArchiveSeq: number;
   clock: V2ClockState;
   view: V2View | null;
+  nombre: string;
 };
 
 export type V2Storage = {
@@ -95,6 +97,18 @@ export type V2Storage = {
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === "object";
+}
+
+export function sanitizeNombre(raw: string | null | undefined): string {
+  return String(raw ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, V2_NOMBRE_CAP);
+}
+
+/** Vacío = Lámina 01. */
+export function displayLaminaNombre(raw: string | null | undefined): string {
+  return sanitizeNombre(raw) || V2_NOMBRE_VACIO;
 }
 
 function num(v: unknown, fallback: number): number {
@@ -128,6 +142,7 @@ export function emptyV2(): V2Document {
     nextArchiveSeq: 1,
     clock: idleClock(),
     view: null,
+    nombre: "",
   };
 }
 
@@ -135,12 +150,12 @@ export function snapshotV2(doc: V2Document): V2Document {
   return {
     product: V2_PRODUCT,
     version: V2_DOC_VERSION,
-    walls: doc.walls.map((m) => createMuro(m.a, m.b, m.id, m.espesor)),
-    openings: doc.openings.map((h) => createHueco(h.kind, h.wallId, h.alongM, h.id, h.ancho)),
+    walls: doc.walls.map((m) => createMuro(m.a, m.b, m.id, m.espesor, m.alto)),
+    openings: doc.openings.map((h) => createHueco(h.kind, h.wallId, h.alongM, h.id, h.ancho, h.alto)),
     columns: doc.columns.map((c) => createColumna(c.c, c.id, c.lado)),
     footings: doc.footings.map((z) => createZapata(z.c, z.id, z.lado, z.columnId)),
-    beams: doc.beams.map((v) => createViga(v.a, v.b, v.id, v.ancho)),
-    slabs: doc.slabs.map((l) => createLosa(l.poly, l.id)),
+    beams: doc.beams.map((v) => createViga(v.a, v.b, v.id, v.ancho, v.canto)),
+    slabs: doc.slabs.map((l) => createLosa(l.poly, l.id, l.espesor)),
     archive: doc.archive.map(clonePlaca),
     nextSeq: doc.nextSeq,
     nextHuecoSeq: doc.nextHuecoSeq,
@@ -151,12 +166,14 @@ export function snapshotV2(doc: V2Document): V2Document {
     nextArchiveSeq: doc.nextArchiveSeq,
     clock: cloneClock(doc.clock),
     view: doc.view ? { panX: doc.view.panX, panY: doc.view.panY, ppm: doc.view.ppm } : null,
+    nombre: sanitizeNombre(doc.nombre),
   };
 }
 
 function clonePlaca(p: V2Placa): V2Placa {
   return {
     id: p.id,
+    nombre: displayLaminaNombre(p.nombre),
     closedAt: p.closedAt,
     largoMuroM: p.largoMuroM,
     losaM2: p.losaM2,
@@ -170,12 +187,12 @@ function clonePlaca(p: V2Placa): V2Placa {
 function cloneDibujo(d: V2Dibujo | null | undefined): V2Dibujo | null {
   if (!d) return null;
   return {
-    walls: d.walls.map((m) => createMuro(m.a, m.b, m.id, m.espesor)),
-    openings: d.openings.map((h) => createHueco(h.kind, h.wallId, h.alongM, h.id, h.ancho)),
+    walls: d.walls.map((m) => createMuro(m.a, m.b, m.id, m.espesor, m.alto)),
+    openings: d.openings.map((h) => createHueco(h.kind, h.wallId, h.alongM, h.id, h.ancho, h.alto)),
     columns: d.columns.map((c) => createColumna(c.c, c.id, c.lado)),
     footings: d.footings.map((z) => createZapata(z.c, z.id, z.lado, z.columnId)),
-    beams: d.beams.map((v) => createViga(v.a, v.b, v.id, v.ancho)),
-    slabs: d.slabs.map((l) => createLosa(l.poly, l.id)),
+    beams: d.beams.map((v) => createViga(v.a, v.b, v.id, v.ancho, v.canto)),
+    slabs: d.slabs.map((l) => createLosa(l.poly, l.id, l.espesor)),
   };
 }
 
@@ -205,8 +222,9 @@ function migrateWalls(raw: unknown): Muro[] {
     const id = typeof item.id === "string" && item.id ? item.id : `M-${String(out.length + 1).padStart(3, "0")}`;
     if (seen.has(id)) continue;
     seen.add(id);
-    const espesor = Math.max(0.05, num(item.espesor, V2_MURO.espesorM));
-    out.push(createMuro(a, b, id, espesor));
+    const espesor = Math.max(V2_MURO.minEspesorM, num(item.espesor, V2_MURO.espesorM));
+    const alto = Math.max(V2_MURO.minAltoM, num(item.alto, V2_MURO.altoM));
+    out.push(createMuro(a, b, id, espesor, alto));
   }
   return out;
 }
@@ -235,7 +253,9 @@ function migrateOpenings(raw: unknown, walls: readonly Muro[]): Hueco[] {
     const ancho = Math.max(0.3, num(item.ancho, def));
     const alongM = num(item.alongM, NaN);
     if (!Number.isFinite(alongM)) continue;
-    out.push(createHueco(kind, wallId, alongM, id, ancho));
+    const defAlto = kind === "puerta" ? V2_HUECO.puerta.altoM : V2_HUECO.ventana.altoM;
+    const alto = Math.max(0.4, num(item.alto, defAlto));
+    out.push(createHueco(kind, wallId, alongM, id, ancho, alto));
   }
   return out;
 }
@@ -276,7 +296,8 @@ function migrateBeams(raw: unknown): Viga[] {
     if (seen.has(id)) continue;
     seen.add(id);
     const ancho = Math.max(0.1, num(item.ancho, V2_VIGA.anchoM));
-    out.push(createViga(a, b, id, ancho));
+    const canto = Math.max(0.1, num(item.canto, V2_VIGA.cantoM));
+    out.push(createViga(a, b, id, ancho, canto));
   }
   return out;
 }
@@ -298,7 +319,8 @@ function migrateSlabs(raw: unknown): Losa[] {
     const id = typeof item.id === "string" && item.id ? item.id : `L-${String(out.length + 1).padStart(3, "0")}`;
     if (seen.has(id)) continue;
     seen.add(id);
-    out.push(createLosa(poly, id));
+    const espesor = Math.max(0.08, num(item.espesor, V2_LOSA_PLANTA.espesorM));
+    out.push(createLosa(poly, id, espesor));
   }
   return out;
 }
@@ -365,6 +387,7 @@ function migrateArchive(raw: unknown): V2Placa[] {
     const closedAt = typeof item.closedAt === "string" && item.closedAt ? item.closedAt : "";
     out.push({
       id,
+      nombre: displayLaminaNombre(typeof item.nombre === "string" ? item.nombre : ""),
       closedAt,
       largoMuroM: Math.max(0, num(item.largoMuroM, 0)),
       losaM2: Math.max(0, num(item.losaM2, 0)),
@@ -456,6 +479,7 @@ export function hydrateV2(parsed: unknown): V2Document | null {
     ),
     clock: migrateClock(parsed.clock),
     view: migrateView(parsed.view),
+    nombre: sanitizeNombre(typeof parsed.nombre === "string" ? parsed.nombre : ""),
   };
   return inferSeal(doc);
 }
@@ -605,7 +629,13 @@ export type SceneForPlaca = {
 /** Takeoff de la placa = geometría en este instante. */
 export function placaFromScene(
   scene: SceneForPlaca,
-  opts: { id: string; estado: Exclude<V2PlacaEstado, "abierta">; rework: boolean; closedAt?: string },
+  opts: {
+    id: string;
+    estado: Exclude<V2PlacaEstado, "abierta">;
+    rework: boolean;
+    closedAt?: string;
+    nombre?: string;
+  },
 ): V2Placa {
   const qty = takeoffScene(scene);
   const largoMuroM = scene.walls.reduce((n, m) => n + muroLargo(m), 0);
@@ -613,6 +643,7 @@ export function placaFromScene(
   const hoja = hojaPresupuesto(qty, { rework: opts.rework });
   return {
     id: opts.id,
+    nombre: displayLaminaNombre(opts.nombre),
     closedAt: opts.closedAt ?? new Date().toISOString(),
     largoMuroM,
     losaM2,
@@ -695,7 +726,7 @@ export function actualizarPlaca(
   archive: readonly V2Placa[],
   clock: V2ClockState,
   scene: SceneForPlaca,
-  opts: { rework: boolean; executed?: boolean } = { rework: false },
+  opts: { rework: boolean; executed?: boolean; nombre?: string } = { rework: false },
 ): { archive: V2Placa[]; clock: V2ClockState; id: string } | null {
   const id = clock.placaId && archive.some((p) => p.id === clock.placaId) ? clock.placaId : null;
   if (!id) return null;
@@ -708,6 +739,7 @@ export function actualizarPlaca(
     estado,
     rework: opts.rework,
     closedAt: prev.closedAt,
+    nombre: opts.nombre ?? prev.nombre,
   });
   return {
     archive: archive.map((p) => (p.id === id ? next : p)),

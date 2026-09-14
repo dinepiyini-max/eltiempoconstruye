@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { diasCuadrilla, hojaPresupuesto, piezasDeEscena, presupuesto } from "./cost.ts";
-import { createHueco, createLosa, createMuro, FIXTURE_TRAZO, measure } from "./geometry.ts";
+import { createHueco, createLosa, createMuro, createViga, FIXTURE_TRAZO, measure, scaleLosaToSides } from "./geometry.ts";
 import { takeoff, takeoffScene } from "./quantity.ts";
 import { V2_CUADRILLA, V2_PIEZAS_CAP, V2_UNIT_PRICES } from "./tables.ts";
 
@@ -124,5 +124,51 @@ describe("v2 piezas y cuadrilla", () => {
       1 * t.huecoDias;
     assert.equal(diasCuadrilla(scene), Math.max(1, Math.ceil(raw1 - 1e-9)));
     assert.ok(raw1 > raw0);
+  });
+});
+
+describe("v2 catálogo SEL mueve RD$", () => {
+  it("viga 0.20×0.40 sube el total vs 0.15×0.25", () => {
+    const slim = createViga({ x: 0, y: 0 }, { x: 4, y: 0 }, "VG-001", 0.15, 0.25);
+    const fat = createViga({ x: 0, y: 0 }, { x: 4, y: 0 }, "VG-001", 0.2, 0.4);
+    const a = hojaPresupuesto(takeoffScene({ walls: [], beams: [slim] }));
+    const b = hojaPresupuesto(takeoffScene({ walls: [], beams: [fat] }));
+    assert.ok(b.total > a.total);
+    const pzA = piezasDeEscena({ walls: [], beams: [slim] });
+    const pzB = piezasDeEscena({ walls: [], beams: [fat] });
+    assert.ok((pzB[0]?.parcial ?? 0) > (pzA[0]?.parcial ?? 0));
+    assert.match(pzB[0]?.medida ?? "", /0\.20 × 0\.40/);
+  });
+
+  it("losa por lados sube o baja el total", () => {
+    const losa = createLosa(
+      [
+        { x: 0, y: 0 },
+        { x: 4, y: 0 },
+        { x: 4, y: 3 },
+        { x: 0, y: 3 },
+      ],
+      "L-001",
+    );
+    const bigger = scaleLosaToSides(losa, 8, 3);
+    const a = hojaPresupuesto(takeoffScene({ walls: [], slabs: [losa] }));
+    const b = hojaPresupuesto(takeoffScene({ walls: [], slabs: [bigger] }));
+    assert.ok(b.total > a.total);
+    const pz = piezasDeEscena({ walls: [], slabs: [bigger] });
+    assert.match(pz[0]?.medida ?? "", /8\.00 × 3\.00/);
+  });
+
+  it("puerta 0.90 → marquesina 1.80 baja blocks y total", () => {
+    const muro = createMuro({ x: 0, y: 0 }, { x: 8, y: 0 }, "M-007");
+    const puerta = createHueco("puerta", "M-007", 3, "P-001", 0.9, 2.1);
+    const marq = createHueco("puerta", "M-007", 3, "P-001", 1.8, 2.1);
+    const s0 = { walls: [muro], openings: [puerta], columns: [], footings: [], beams: [], slabs: [] };
+    const s1 = { walls: [muro], openings: [marq], columns: [], footings: [], beams: [], slabs: [] };
+    const q0 = takeoffScene(s0);
+    const q1 = takeoffScene(s1);
+    assert.ok(q1.blocksEst < q0.blocksEst);
+    const a = hojaPresupuesto(q0);
+    const b = hojaPresupuesto(q1);
+    assert.ok(b.total < a.total);
   });
 });

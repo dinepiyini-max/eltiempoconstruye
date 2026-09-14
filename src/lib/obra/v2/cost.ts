@@ -2,7 +2,7 @@
  * Cost V2 — presupuesto. qty × precio. No toca resources.dinero.
  * Precios solo aquí y en tables.ts.
  */
-import { formatM2, formatMeters, losaArea, muroLargo, vigaLargo, type Hueco, type Muro } from "./geometry.ts";
+import { formatMeters, losaLados, muroLargo, vigaLargo, type Hueco, type Muro } from "./geometry.ts";
 import type { SceneQty, Takeoff, TakeoffScene } from "./quantity.ts";
 import { takeoffScene } from "./quantity.ts";
 import {
@@ -176,7 +176,7 @@ export function piezasDeEscena(s: SceneQty): PiezaLinea[] {
     out.push({
       id: v.id,
       kind: "viga",
-      medida: formatMeters(vigaLargo(v)),
+      medida: `${formatMeters(vigaLargo(v))} · ${seccion(v.ancho, v.canto ?? 0.3)}`,
       parcial: parcialDe({ ...vacia(), beams: [v] }),
     });
     if (out.length >= V2_PIEZAS_CAP) return out.slice(0, V2_PIEZAS_CAP);
@@ -185,7 +185,7 @@ export function piezasDeEscena(s: SceneQty): PiezaLinea[] {
     out.push({
       id: l.id,
       kind: "losa",
-      medida: formatM2(losaArea(l)),
+      medida: `${losaLados(l).largo.toFixed(2)} × ${losaLados(l).ancho.toFixed(2)} m`,
       parcial: parcialDe({ ...vacia(), slabs: [l] }),
     });
     if (out.length >= V2_PIEZAS_CAP) return out.slice(0, V2_PIEZAS_CAP);
