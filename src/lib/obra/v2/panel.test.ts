@@ -4,7 +4,7 @@ import { createColumna, createHueco, createLosa, createMuro, createViga, createZ
 import { panelCantidad } from "./panel.ts";
 import { hojaPresupuesto } from "./cost.ts";
 import { takeoffLosa, takeoffMuro, takeoffScene } from "./quantity.ts";
-import { V2_MURO } from "./tables.ts";
+import { V2_COLUMNA, V2_MURO, V2_ZAPATA } from "./tables.ts";
 
 describe("v2 panel cantidad", () => {
   const muro = createMuro({ x: 0, y: 0 }, { x: 8, y: 0 }, "M-001");
@@ -99,5 +99,60 @@ describe("v2 panel cantidad", () => {
     assert.equal(pv.seccion, "0.20 × 0.30 m");
     assert.equal(pv.canto, 0.3);
     assert.equal(pv.blocks, null);
+    assert.equal(pv.estado, "completa");
+    assert.equal(pv.unidad, "m³");
+  });
+
+  it("SEL muro con vanos solapados: estado recortada y área = takeoff", () => {
+    const a = createHueco("puerta", "M-001", 4, "P-001", 2, 2);
+    const b = createHueco("ventana", "M-001", 4, "V-001", 2, 2);
+    const s = { walls: [muro], openings: [a, b] };
+    const p = panelCantidad(s, "M-001");
+    const q = takeoffMuro(muro, undefined, [a, b]);
+    assert.equal(p.estado, "recortada");
+    assert.equal(p.areaNeta, q.areaNetaM2);
+    assert.equal(p.volumen, q.volumenM3);
+    assert.equal(p.unidad, "m²");
+    assert.ok((p.area ?? 0) > 0);
+    assert.ok(p.notas.some((n) => n.includes("unión")));
+    const hoja = hojaPresupuesto(takeoffScene(s));
+    assert.equal(hoja.lineas.find((ln) => ln.key === "block6")?.qty, q.blocksEst);
+  });
+
+  it("vano sin muro padre: incompleta y sin cantidad", () => {
+    const puerta = createHueco("puerta", "M-999", 2, "P-009", 0.9);
+    const p = panelCantidad({ walls: [], openings: [puerta] }, "P-009");
+    assert.equal(p.estado, "incompleta");
+    assert.equal(p.area, null);
+    assert.equal(p.cantidad, null);
+    assert.equal(p.volumen, null);
+    assert.equal(p.hormigonM3, null);
+    assert.ok(p.notas.some((n) => n.includes("muro")));
+  });
+
+  it("columna y zapata declaran el supuesto de juego", () => {
+    const col = createColumna({ x: 1, y: 1 }, "C-001");
+    const zap = createZapata({ x: 1, y: 1 }, "Z-001");
+    const s = { walls: [], openings: [], columns: [col], footings: [zap], beams: [], slabs: [] };
+    const pc = panelCantidad(s, "C-001");
+    assert.equal(pc.estado, "supuesto");
+    assert.equal(pc.alto, V2_COLUMNA.altoM);
+    assert.equal(pc.unidad, "m³");
+    assert.ok(pc.notas.some((n) => n.includes("juego") && n.includes("2.40")));
+    const pz = panelCantidad(s, "Z-001");
+    assert.equal(pz.estado, "supuesto");
+    assert.equal(pz.espesor, V2_ZAPATA.cantoM);
+    assert.ok(pz.notas.some((n) => n.includes("canto") || n.includes("Canto")));
+  });
+
+  it("altos distintos no inventan un alto único de obra", () => {
+    const otro = createMuro({ x: 0, y: 3 }, { x: 4, y: 3 }, "M-002", 0.15, 3);
+    const p = panelCantidad({ walls: [muro, otro], openings: [] }, null);
+    assert.equal(p.alto, null);
+    assert.equal(p.hiladas, null);
+    assert.ok(p.notas.some((n) => n.includes("Altos")));
+    const solo = panelCantidad({ walls: [otro], openings: [] }, null);
+    assert.equal(solo.alto, 3);
+    assert.equal(solo.estado, "completa");
   });
 });

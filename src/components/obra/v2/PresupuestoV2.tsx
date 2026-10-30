@@ -48,7 +48,15 @@ export function PresupuestoV2({
             <tbody>
               {hoja.lineas.map((ln) => (
                 <tr key={ln.key} className="border-b border-rule/70" data-partida={ln.key}>
-                  <td className="py-3 pr-3 font-serif text-base text-ink">{ln.partida}</td>
+                  <td className="py-3 pr-3">
+                    <p className="font-serif text-base text-ink">{ln.partida}</p>
+                    <p
+                      className="mt-0.5 max-w-[18rem] font-serif text-xs italic leading-snug text-ink-soft"
+                      data-origen={ln.key}
+                    >
+                      {ln.origen}
+                    </p>
+                  </td>
                   <td className="py-3 pr-3 font-sans text-xl tabular-nums text-ink">{fmtQty(ln.qty)}</td>
                   <td className="py-3 pr-3 small-caps text-[0.62rem] text-ink-soft">{ln.unit}</td>
                   <td className="py-3 pr-3 font-sans text-base tabular-nums text-ink">{formatInt(ln.pu)}</td>
@@ -63,7 +71,9 @@ export function PresupuestoV2({
       <p className="font-sans text-4xl tabular-nums leading-none tracking-tight text-ink" data-estimado>
         {formatInt(hoja.total)}
       </p>
-      <p className="mt-2 font-serif text-sm italic text-ink-soft">simulación, no cotización</p>
+      <p className="mt-2 font-serif text-sm italic text-ink-soft" data-precios="juego">
+        Precios de juego. No es cotización.
+      </p>
       {hoja.lineas.some((ln) => ln.key === "retrabajo") ? (
         <p data-retrabajo className="stamp stamp-flat mt-3 inline-block px-2.5 py-1.5 text-[0.62rem]">
           RETRABAJO

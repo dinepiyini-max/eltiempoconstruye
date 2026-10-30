@@ -35,6 +35,7 @@ describe("v2 cost", () => {
     const sum = withWall.lineas.reduce((a, ln) => a + ln.qty * ln.pu, 0);
     assert.equal(withWall.total, sum);
     assert.equal(withWall.lineas.length, 5);
+    for (const ln of withWall.lineas) assert.ok(ln.origen.length > 10);
     assert.ok(withWall.lineas.some((ln) => ln.key === "block6" && ln.qty > 0));
     assert.ok(withWall.lineas.some((ln) => ln.key === "albanil" && ln.qty > 0));
     assert.ok(withWall.total > empty.total);
