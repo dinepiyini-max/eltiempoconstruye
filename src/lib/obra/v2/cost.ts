@@ -47,6 +47,8 @@ export type HojaKey = "block6" | "mortero" | "hormigon" | "acero" | "albanil" | 
 export type HojaLinea = {
   key: HojaKey;
   partida: string;
+  /** De dónde sale la cantidad. No es una segunda medición. */
+  origen: string;
   qty: number;
   unit: string;
   pu: number;
@@ -57,6 +59,14 @@ export type HojaPresupuesto = {
   lineas: HojaLinea[];
   total: number;
   empty: boolean;
+};
+
+const HOJA_ORIGEN: Record<Exclude<HojaKey, "retrabajo">, string> = {
+  block6: "Área neta de muros ÷ cara de block. Vanos en unión.",
+  mortero: "Área neta de muros × rendimiento de juego.",
+  hormigon: "m³ de muros netos, columnas, zapatas, vigas y losas.",
+  acero: "m³ de hormigón × tasa de juego, según la pieza.",
+  albanil: "Área neta de muros, la de la medición.",
 };
 
 const HOJA_ORDER: { key: Exclude<HojaKey, "retrabajo">; qty: (q: TakeoffScene) => number }[] = [
@@ -74,6 +84,7 @@ export function hojaPresupuesto(q: TakeoffScene, opts: { rework?: boolean } = {}
     return {
       key,
       partida: spec.label,
+      origen: HOJA_ORIGEN[key],
       qty: n,
       unit: spec.unit,
       pu: spec.price,
@@ -86,6 +97,7 @@ export function hojaPresupuesto(q: TakeoffScene, opts: { rework?: boolean } = {}
     lineas.push({
       key: "retrabajo",
       partida: "Retrabajo",
+      origen: "Porcentaje de juego sobre el subtotal. No es una medición.",
       qty: 1,
       unit: "gl",
       pu: extra,

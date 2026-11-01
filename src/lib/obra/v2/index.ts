@@ -106,6 +106,8 @@ export type {
 } from "./geometry.ts";
 
 export {
+  descuentoVano,
+  medicionMuro,
   takeoff,
   takeoffAsCost,
   takeoffColumna,
@@ -116,7 +118,15 @@ export {
   takeoffViga,
   takeoffZapata,
 } from "./quantity.ts";
-export type { Takeoff, TakeoffMuro, TakeoffScene } from "./quantity.ts";
+export type {
+  DescuentoVano,
+  MedicionEstado,
+  MedicionMuro,
+  Takeoff,
+  TakeoffMuro,
+  TakeoffScene,
+  VanoMedido,
+} from "./quantity.ts";
 
 export { diasCuadrilla, hojaPresupuesto, piezasDeEscena, presupuesto } from "./cost.ts";
 export type { CostItem, HojaLinea, HojaPresupuesto, PiezaKind, PiezaLinea, Presupuesto } from "./cost.ts";

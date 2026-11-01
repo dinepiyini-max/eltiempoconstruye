@@ -474,6 +474,7 @@ export function NuevaObra() {
           >
             <p className="small-caps text-[0.62rem] text-cyan">Cantidad</p>
             <h2 className="font-serif text-2xl text-ink">{panel.title}</h2>
+            <MedicionBanner estado={panel.estado} notas={panel.notas} />
             <dl key={`${panel.kind}:${panel.title}`} className="mt-3 grid grid-cols-2 gap-x-4 gap-y-4 md:grid-cols-1">
               <PanelFields
                 panel={panel}
@@ -505,7 +506,9 @@ export function NuevaObra() {
             <p className="font-sans text-3xl tabular-nums leading-none text-ink" data-cost>
               {formatInt(hoja.total)}
             </p>
-            <p className="mt-1 font-serif text-xs italic text-ink-soft">simulación, no cotización</p>
+            <p className="mt-1 font-serif text-xs italic text-ink-soft" data-precios="juego">
+              Precios de juego. No es cotización.
+            </p>
           </aside>
         </div>
       )}
@@ -605,7 +608,8 @@ function PanelFields({
           />
         ) : null}
         <QtyBig k="Hiladas" v={panel.hiladas == null ? "—" : String(panel.hiladas)} />
-        <QtyBig k="Área neta" v={dash(panel.areaNeta, formatM2)} />
+        <QtyBig k="Área neta" v={dash(panel.areaNeta, formatM2)} mark="area" />
+        <QtyBig k="Volumen neto" v={dash(panel.volumen, (n) => `${n.toFixed(2)} m³`)} mark="volumen" />
         <QtyBig
           k="Blocks"
           v={panel.blocks == null ? "—" : String(panel.blocks)}
@@ -714,10 +718,14 @@ function PanelFields({
               key: String(n),
               label: n.toFixed(2),
               on: nearly(panel.huecoAncho, n),
-              apply: () => onHueco(id, n, panel.huecoAlto ?? V2_HUECO.ventana.altoM),
+              apply: () => {
+                if (panel.huecoAlto == null) return;
+                onHueco(id, n, panel.huecoAlto);
+              },
             }))}
           />
         ) : null}
+        <QtyBig k="Descuento" v={dash(panel.area, formatM2)} mark="descuento" />
         <QtyBig k="Muro padre" v={panel.parentWallId ?? "—"} />
         {panel.blocksDelta < 0 ? <QtyBig k="−blocks" v={`−${-panel.blocksDelta}`} /> : null}
       </>
@@ -747,6 +755,7 @@ function PanelFields({
           />
         ) : null}
         <QtyBig k="Sección" v={panel.seccion ?? "—"} />
+        <QtyBig k="Alto" v={dash(panel.alto, formatMeters)} mark="alto" />
         <QtyBig k="Hormigón" v={dash(panel.hormigonM3, (n) => `${n.toFixed(2)} m³`)} />
         <QtyBig k="Acero est." v={dash(panel.aceroT, (n) => `${n.toFixed(2)} t`)} />
       </>
@@ -776,6 +785,7 @@ function PanelFields({
           />
         ) : null}
         <QtyBig k="Sección" v={panel.seccion ?? "—"} />
+        <QtyBig k="Canto" v={dash(panel.espesor, formatMeters)} mark="canto" />
         <QtyBig k="Hormigón" v={dash(panel.hormigonM3, (n) => `${n.toFixed(2)} m³`)} />
         <QtyBig k="Acero est." v={dash(panel.aceroT, (n) => `${n.toFixed(2)} t`)} />
       </>
@@ -929,6 +939,30 @@ function MedidaEdit({
   );
 }
 
+function MedicionBanner({ estado, notas }: { estado: PanelCantidad["estado"]; notas: readonly string[] }) {
+  const label =
+    estado === "completa"
+      ? "Medición completa"
+      : estado === "recortada"
+        ? "Medición recortada"
+        : estado === "incompleta"
+          ? "Medición incompleta"
+          : estado === "supuesto"
+            ? "Medición con supuesto"
+            : "Sin piezas";
+  const alert = estado === "recortada" || estado === "incompleta" || estado === "supuesto";
+  return (
+    <div className="mt-2" data-medicion-estado={estado}>
+      <p className={`small-caps text-[0.62rem] ${alert ? "text-rust" : "text-cyan"}`}>{label}</p>
+      {notas.slice(0, 4).map((n) => (
+        <p key={n} data-medicion-nota className="mt-1 font-serif text-xs italic leading-snug text-ink">
+          {n}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 function dash(n: number | null, fmt: (n: number) => string): string {
   return n == null ? "—" : fmt(n);
 }
@@ -962,9 +996,9 @@ function ToolBtn({
   );
 }
 
-function QtyBig({ k, v, sub }: { k: string; v: string; sub?: string }) {
+function QtyBig({ k, v, sub, mark }: { k: string; v: string; sub?: string; mark?: string }) {
   return (
-    <div>
+    <div data-medida={mark}>
       <dt className="small-caps text-[0.62rem] text-ink-soft">{k}</dt>
       <dd className="font-sans text-3xl tabular-nums leading-none tracking-tight text-ink">{v}</dd>
       {sub ? (

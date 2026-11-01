@@ -13,7 +13,10 @@ import {
   scaleLosaToArea,
   scaleLosaToSides,
 } from "./geometry.ts";
+import { hojaPresupuesto } from "./cost.ts";
 import {
+  descuentoVano,
+  medicionMuro,
   takeoff,
   takeoffColumna,
   takeoffLosa,
@@ -131,5 +134,99 @@ describe("v2 quantity", () => {
     assert.ok(Math.abs(qs.hormigonM3 - 4 * 0.15 * 0.25) < 1e-9);
     assert.ok(Math.abs(qf.hormigonM3 - 4 * 0.2 * 0.4) < 1e-9);
     assert.ok(qf.hormigonM3 > qs.hormigonM3);
+  });
+});
+
+describe("v2 medición de vanos", () => {
+  it("solape parcial: unión 2.50 m², no la suma 3.00, neto 7.50, volumen 1.50", () => {
+    const muro = createMuro({ x: 0, y: 0 }, { x: 4, y: 0 }, "M-001", 0.2, 2.5);
+    const puerta = createHueco("puerta", "M-001", 1.5, "P-001", 1, 2);
+    const ventana = createHueco("ventana", "M-001", 2, "V-001", 1, 1);
+    const q = takeoffMuro(muro, undefined, [puerta, ventana]);
+    const med = medicionMuro(muro, [puerta, ventana]);
+    assert.ok(Math.abs(q.vanoM2 - 2.5) < 1e-9);
+    assert.ok(Math.abs(q.areaNetaM2 - 7.5) < 1e-9);
+    assert.ok(Math.abs(q.volumenM3 - 1.5) < 1e-9);
+    assert.ok(q.areaNetaM2 >= 0);
+    assert.equal(med.estado, "recortada");
+    assert.ok(med.notas.some((n) => n.includes("unión")));
+    const hoja = hojaPresupuesto(takeoffScene({ walls: [muro], openings: [puerta, ventana] }));
+    const blocks = hoja.lineas.find((ln) => ln.key === "block6");
+    assert.equal(blocks?.qty, q.blocksEst);
+    assert.equal(hoja.lineas.find((ln) => ln.key === "hormigon")?.qty, q.hormigonM3);
+  });
+
+  it("dos vanos iguales no descuentan dos veces", () => {
+    const muro = createMuro({ x: 0, y: 0 }, { x: 8, y: 0 }, "M-001");
+    const a = createHueco("puerta", "M-001", 4, "P-001", 2, 2);
+    const b = createHueco("ventana", "M-001", 4, "V-001", 2, 2);
+    const uno = takeoffMuro(muro, undefined, [a]);
+    const dos = takeoffMuro(muro, undefined, [a, b]);
+    assert.ok(Math.abs(dos.vanoM2 - uno.vanoM2) < 1e-9);
+    assert.ok(dos.vanoM2 < 8);
+    assert.ok(dos.areaNetaM2 >= 0);
+    const marginal = descuentoVano(muro, [a, b], "V-001");
+    assert.equal(marginal.areaM2, 0);
+    assert.equal(marginal.estado, "recortada");
+  });
+
+  it("vano que se sale del muro descuenta solo el tramo interior", () => {
+    const muro = createMuro({ x: 0, y: 0 }, { x: 8, y: 0 }, "M-001");
+    const colgado = createHueco("puerta", "M-001", 0.3, "P-009", 2, 2);
+    const q = takeoffMuro(muro, undefined, [colgado]);
+    assert.ok(Math.abs(q.vanoM2 - 2.6) < 1e-9);
+    assert.ok(q.vanoM2 < 4);
+    assert.ok(q.areaNetaM2 > 0);
+    const med = medicionMuro(muro, [colgado]);
+    assert.equal(med.estado, "recortada");
+    assert.ok(med.notas.some((n) => n.startsWith("P-009:")));
+  });
+
+  it("vano fuera del muro descuenta 0", () => {
+    const muro = createMuro({ x: 0, y: 0 }, { x: 8, y: 0 }, "M-001");
+    const fuera = createHueco("ventana", "M-001", -10, "V-009", 1, 1);
+    const q = takeoffMuro(muro, undefined, [fuera]);
+    assert.equal(q.vanoM2, 0);
+    assert.equal(q.areaNetaM2, q.areaM2);
+    assert.ok(q.volumenM3 >= 0);
+  });
+
+  it("alto mayor que el muro se recorta al alto del muro y no pasa de ahí", () => {
+    const muro = createMuro({ x: 0, y: 0 }, { x: 4, y: 0 }, "M-001", 0.15, 2.5);
+    const alto = createHueco("puerta", "M-001", 2, "P-003", 1, 4);
+    const q = takeoffMuro(muro, undefined, [alto]);
+    assert.ok(Math.abs(q.vanoM2 - 2.5) < 1e-9);
+    assert.ok(q.areaNetaM2 >= 0);
+    assert.ok(q.vanoM2 <= q.areaM2);
+    const med = medicionMuro(muro, [alto]);
+    assert.equal(med.estado, "recortada");
+  });
+
+  it("muchos vanos enormes no dejan área ni volumen negativos", () => {
+    const muro = createMuro({ x: 0, y: 0 }, { x: 4, y: 0 }, "M-001", 0.15, 2.5);
+    const vanos = [0, 1, 2, 3, 4].map((i) => createHueco("puerta", "M-001", 2, `P-00${i}`, 20, 20));
+    const q = takeoffMuro(muro, undefined, vanos);
+    assert.ok(q.areaNetaM2 >= 0);
+    assert.ok(q.volumenM3 >= 0);
+    assert.ok(q.vanoM2 <= q.areaM2 + 1e-9);
+    assert.ok(q.vanoM2 < 20 * 20);
+  });
+
+  it("sin largo o sin alto de vano no inventa descuento", () => {
+    const muro = createMuro({ x: 0, y: 0 }, { x: 4, y: 0 }, "M-001", 0.15, 2.5);
+    const bruta = takeoffMuro(muro);
+    const degenerado = createMuro({ x: 1, y: 1 }, { x: 1, y: 1 }, "M-000");
+    const vacio = medicionMuro(degenerado, []);
+    assert.equal(vacio.estado, "incompleta");
+    assert.equal(vacio.areaNetaM2, null);
+    assert.equal(takeoffMuro(degenerado).areaM2, 0);
+    assert.equal(takeoffMuro(degenerado).volumenM3, 0);
+    const malo = { ...createHueco("puerta", "M-001", 2, "P-008", 1, 2), alto: 0 };
+    const med = medicionMuro(muro, [malo]);
+    assert.equal(med.estado, "incompleta");
+    assert.equal(med.vanoM2, 0);
+    assert.ok(Math.abs((med.areaNetaM2 ?? 0) - bruta.areaM2) < 1e-9);
+    const d = descuentoVano(muro, [malo], "P-008");
+    assert.equal(d.areaM2, null);
   });
 });
